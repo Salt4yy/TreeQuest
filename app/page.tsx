@@ -51,8 +51,52 @@ if (typeof document !== 'undefined') {
         from { stroke-dashoffset: 0; }
         to { stroke-dashoffset: -20; }
       }
+      
+      /* Fade-in animation pour les edges */
+      .react-flow__edge {
+        animation: edge-fade-in 0.4s ease-out;
+      }
+      @keyframes edge-fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
     `;
     document.head.appendChild(style);
+  }
+  
+  // Custom Scrollbars style Minecraft
+  const scrollbarStyle = document.createElement('style');
+  scrollbarStyle.id = 'custom-scrollbars';
+  if (!document.getElementById(scrollbarStyle.id)) {
+    scrollbarStyle.textContent = `
+      /* Scrollbar Webkit (Chrome, Safari, Edge) */
+      ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #1a1a1a;
+        border: 1px solid #0d0d0d;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #444;
+        border: 1px solid #2a2a2a;
+        box-shadow: inset 1px 1px 0 rgba(255,255,255,0.1);
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #555;
+      }
+      ::-webkit-scrollbar-corner {
+        background: #1a1a1a;
+      }
+      
+      /* Scrollbar Firefox */
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: #444 #1a1a1a;
+      }
+    `;
+    document.head.appendChild(scrollbarStyle);
   }
 }
 import { supabase } from '@/lib/supabase';
@@ -101,7 +145,7 @@ type QuestNodeData = {
 // --- Bibliothèque d'émojis étendue (+100, style Minecraft/FTB) ---
 const EMOJI_BY_THEME: Record<string, string[]> = {
   Outils: ['⛏️', '🪓', '🔨', '🪛', '🔧', '⚒️', '🛠️', '🗡️', '⚔️', '🛡️', '🏹', '🔫', '🪤', '🧲', '🔩', '⛓️'],
-  Blocs: ['🧱', '🪵', '🪨', '💎', '🟫', '🟩', '🟦', '⬛', '⬜', '🟥', '🟧', '🟨', '🟪', '🟫', '🔲', '🔳'],
+  Blocs: ['🧱', '🪵', '🪨', '💎', '🟫', '🟩', '🟦', '⬛', '⬜', '🟥', '🟧', '🟨', '🟪', '🔲', '🔳'],
   Nature: ['🌲', '🌳', '🌴', '🍄', '🌻', '🌸', '🌺', '🪴', '🌿', '🍀', '🦋', '🐝', '🌊', '☀️', '🌙', '⭐', '🔥', '💧', '🌈'],
   Nourriture: ['🍎', '🥕', '🍞', '🧀', '🍖', '🍕', '🍰', '🍪', '☕', '🍺', '🧪', '📦', '🥗', '🌮', '🍣', '🍜', '🧁', '🍩', '🥤'],
   Activités: ['🏋️', '🚴', '🏃', '🧘', '🎸', '🎨', '📚', '✍️', '🎮', '🎯', '⚽', '🏀', '🎲', '🃏', '🎭', '🎪', '🎬', '📷'],
@@ -110,9 +154,9 @@ const EMOJI_BY_THEME: Record<string, string[]> = {
   Symboles: ['⭐', '🔥', '🎯', '🏆', '📈', '⚠️', '✅', '❌', '💚', '💙', '❤️', '🖤', '✨', '💫', '🌟', '🔮', '⚡', '🛡️', '⚔️'],
 };
 
-// --- 1. COMPOSANT NOEUD (CERCLE) ---
+// --- 1. COMPOSANT NOEUD (CERCLE) avec React.memo pour optimisation ---
 type QuestNodeType = Node<QuestNodeData, 'quest'>;
-const QuestNode = (props: NodeProps<QuestNodeType>) => {
+const QuestNode = React.memo((props: NodeProps<QuestNodeType>) => {
   const { data } = props;
   if (!data) return null;
   const nodeData: QuestNodeData = data;
@@ -179,7 +223,8 @@ const QuestNode = (props: NodeProps<QuestNodeType>) => {
       )}
     </div>
   );
-};
+});
+QuestNode.displayName = 'QuestNode';
 
 const nodeTypes = { quest: QuestNode as React.ComponentType<NodeProps<Node<QuestNodeData, 'quest'>>> };
 
@@ -210,7 +255,9 @@ const AuthModal = ({ onClose }: { onClose: () => void }) => {
     try {
       const { error: err } = await supabase.auth.signInWithOAuth({
         provider,
-        options: { redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined },
+        options: { 
+          redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined 
+        },
       });
       if (err) throw err;
       onClose();
@@ -456,9 +503,9 @@ const QuestModal = ({
                     <div key={theme} className="mb-2">
                       <p className="text-[10px] text-gray-400 mb-0.5 uppercase tracking-wider">{theme}</p>
                       <div className="grid grid-cols-8 gap-0.5">
-                        {emojis.map((emoji) => (
+                        {emojis.map((emoji, emojiIndex) => (
                           <button
-                            key={`${theme}-${emoji}`}
+                            key={`${theme}-${emojiIndex}`}
                             type="button"
                             onClick={() => applyEmoji(emoji)}
                             className="w-8 h-8 flex items-center justify-center text-lg border-2 border-[#444] bg-[#1a1a1a] hover:bg-[#3a3a3a] hover:border-[#555]"
@@ -501,7 +548,7 @@ const QuestModal = ({
              <textarea
                value={editedDesc}
                onChange={(e) => setEditedDesc(e.target.value)}
-               className="w-full min-h-[200px] bg-[#1a1a1a] border-2 border-[#555] p-3 text-white text-sm font-mono resize-y"
+               className="w-full min-h-[200px] bg-[#0d0d0d] border-4 border-[#333] border-t-[#555] border-l-[#555] p-3 text-white text-sm font-mono resize-y focus:outline-none focus:border-[#55ff55]/50 transition-colors shadow-[inset_2px_2px_4px_rgba(0,0,0,0.5)]"
                placeholder="Décrivez cette quête..."
              />
            ) : (
@@ -795,7 +842,7 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     const newQuest = {
       title: 'Nouvelle Quête',
       description: null,
-      status: 'available',
+      status: 'available' as DbStatus,
       position_x: center.x,
       position_y: center.y,
       tree_id: currentTreeId,
@@ -1073,6 +1120,7 @@ export default function Page() {
   const [tutorialStep, setTutorialStep] = useState<number | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [localQuests, setLocalQuests] = useState<Quest[]>([]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u ?? null));
@@ -1101,6 +1149,13 @@ export default function Page() {
       setSpotlightRect(null);
       return;
     }
+    
+    // Adaptation pour l'étape 'node' si aucune quête
+    if (step.target === 'node' && localQuests.length === 0) {
+      setSpotlightRect(null);
+      return;
+    }
+    
     if (step.target === 'center') {
       setSpotlightRect(null);
       return;
@@ -1119,7 +1174,7 @@ export default function Page() {
     } else {
       setSpotlightRect(null);
     }
-  }, [tutorialStep]);
+  }, [tutorialStep, localQuests.length]);
 
   const tutorialTargetRefs: TutorialTargetRefs = useMemo(() => ({
     addButtonRef,
@@ -1163,7 +1218,23 @@ export default function Page() {
       }
     };
     loadData();
-  }, [user]);
+  }, [user, currentTreeId]);
+
+  // Charger les quêtes pour le tutoriel
+  useEffect(() => {
+    if (!user || !currentTreeId) {
+      setLocalQuests([]);
+      return;
+    }
+    const loadQuests = async () => {
+      const { data } = await supabase
+        .from('quests')
+        .select('id, title, description, status, position_x, position_y, tree_id, icon')
+        .eq('tree_id', currentTreeId);
+      if (data) setLocalQuests(data as Quest[]);
+    };
+    loadQuests();
+  }, [user, currentTreeId]);
 
   const handleAddCategory = async () => {
     if (!newCategoryName.trim() || !user) return;
@@ -1285,6 +1356,11 @@ export default function Page() {
 
   const currentTutorialStep = tutorialStep !== null ? TUTORIAL_STEPS[tutorialStep] : null;
   const isLastStep = tutorialStep !== null && tutorialStep >= TUTORIAL_STEPS.length - 1;
+  
+  // Adapter le message pour l'étape 'node' si aucune quête
+  const tutorialText = currentTutorialStep && currentTutorialStep.target === 'node' && localQuests.length === 0
+    ? "Commence par créer quelques quêtes avec le bouton « Ajouter », puis tu pourras cliquer dessus pour les personnaliser."
+    : currentTutorialStep?.text || '';
 
   return (
     <div className="flex h-screen w-screen bg-[#101010] text-white font-sans overflow-hidden">
@@ -1310,176 +1386,194 @@ export default function Page() {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto py-2 min-w-0" style={{ backgroundColor: '#1e1e1e' }}>
-            {groupedTrees.map(({ category, trees: categoryTrees }, index) => (
-              <div
-                key={category.id}
-                ref={index === 0 ? categoryRowRef : undefined}
-                className={`group ${tutorialStep !== null && TUTORIAL_STEPS[tutorialStep]?.target === 'add_tree' && index === 0 ? 'tutorial-add-tree' : ''}`}
-              >
-                {index > 0 && <div className="mx-3 my-1 border-t border-[#333]" />}
-                <div className="flex items-center">
-                  <div className="flex-1">
-                    <SidebarItem
-                      label={category.name}
-                      icon={Folder}
-                      isEditing={editingCategoryId === category.id}
-                      editedName={editingName}
-                      onNameChange={setEditingName}
-                      onSaveEdit={() => handleRenameCategory(category.id)}
-                      onCancelEdit={() => {
-                        setEditingCategoryId(null);
-                        setEditingType(null);
-                        setEditingName('');
-                      }}
-                      onEdit={() => {
-                        setEditingCategoryId(category.id);
-                        setEditingType('category');
-                        setEditingName(category.name);
-                      }}
-                      onDelete={() => setDeleteConfirm({ type: 'category', id: category.id, name: category.name })}
-                    />
-                  </div>
-                  {!showNewTreeInput && !editingCategoryId && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowNewTreeInput(true);
-                        setShowNewCategoryInput(false);
-                        setSelectedCategoryId(category.id);
-                      }}
-                      className={`p-1 mr-2 hover:bg-[#444] rounded transition-opacity ${tutorialStep !== null && TUTORIAL_STEPS[tutorialStep]?.target === 'add_tree' && index === 0 ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                      title="Ajouter un arbre dans cette catégorie"
-                    >
-                      <Plus size={14} className="text-gray-400 hover:text-green-400" />
-                    </button>
-                  )}
-                </div>
-                {categoryTrees.map(tree => (
+          {/* Message si aucune catégorie */}
+          {categories.length === 0 && !showNewCategoryInput && (
+            <div className="px-4 py-8 text-center">
+              <p className="text-gray-500 text-sm font-mono mb-3">
+                Aucune catégorie pour l&apos;instant.
+              </p>
+              <p className="text-gray-400 text-xs font-mono leading-relaxed">
+                Commence par créer ta première catégorie pour organiser tes quêtes !
+              </p>
+            </div>
+          )}
+          
+          {groupedTrees.map(({ category, trees: categoryTrees }, index) => (
+            <div
+              key={category.id}
+              ref={index === 0 ? categoryRowRef : undefined}
+              className="group"
+            >
+              {index > 0 && <div className="mx-3 my-1 border-t border-[#333]" />}
+              <div className="flex items-center">
+                <div className="flex-1">
                   <SidebarItem
-                    key={tree.id}
-                    label={tree.name}
-                    icon={FolderTree}
-                    isIndented={true}
-                    isActive={currentTreeId === tree.id}
-                    onClick={() => setCurrentTreeId(tree.id)}
-                    isEditing={editingTreeId === tree.id}
+                    label={category.name}
+                    icon={Folder}
+                    isEditing={editingCategoryId === category.id}
                     editedName={editingName}
                     onNameChange={setEditingName}
-                    onSaveEdit={() => handleRenameTree(tree.id)}
+                    onSaveEdit={() => handleRenameCategory(category.id)}
                     onCancelEdit={() => {
-                      setEditingTreeId(null);
+                      setEditingCategoryId(null);
                       setEditingType(null);
                       setEditingName('');
                     }}
                     onEdit={() => {
-                      setEditingTreeId(tree.id);
-                      setEditingType('tree');
-                      setEditingName(tree.name);
+                      setEditingCategoryId(category.id);
+                      setEditingType('category');
+                      setEditingName(category.name);
                     }}
-                    onDelete={() => setDeleteConfirm({ type: 'tree', id: tree.id, name: tree.name })}
+                    onDelete={() => setDeleteConfirm({ type: 'category', id: category.id, name: category.name })}
                   />
-                ))}
-                {showNewTreeInput && selectedCategoryId === category.id && (
-                  <div className="pl-8 px-4 py-2 border-l-2 border-blue-500 flex items-center gap-2">
-                    <input
-                      value={newTreeName}
-                      onChange={(e) => setNewTreeName(e.target.value)}
-                      onBlur={() => {
-                        if (!newTreeName.trim()) {
-                          setShowNewTreeInput(false);
-                          setSelectedCategoryId(null);
-                          setNewTreeName('');
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleAddTree();
-                        if (e.key === 'Escape') {
-                          setShowNewTreeInput(false);
-                          setSelectedCategoryId(null);
-                          setNewTreeName('');
-                        }
-                      }}
-                      placeholder="Nom de l'arbre..."
-                      className="flex-1 min-w-0 bg-[#1a1a1a] border border-[#555] px-2 py-1 text-white text-sm font-mono"
-                      autoFocus
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleAddTree()}
-                      className="shrink-0 p-1.5 rounded bg-[#2d2d2d] border border-[#555] text-[#55ff55] hover:bg-[#3a3a3a] font-mono text-xs"
-                      title="Ajouter"
-                    >
-                      <Check size={14} strokeWidth={3} />
-                    </button>
-                  </div>
+                </div>
+                {!showNewTreeInput && !editingCategoryId && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowNewTreeInput(true);
+                      setShowNewCategoryInput(false);
+                      setSelectedCategoryId(category.id);
+                    }}
+                    className={`p-1 mr-2 hover:bg-[#444] rounded transition-opacity ${
+                      tutorialStep !== null && 
+                      TUTORIAL_STEPS[tutorialStep]?.target === 'add_tree' && 
+                      index === 0 
+                        ? '!opacity-100' 
+                        : 'opacity-0 group-hover:opacity-100'
+                    }`}
+                    title="Ajouter un arbre dans cette catégorie"
+                  >
+                    <Plus size={14} className="text-gray-400 hover:text-green-400" />
+                  </button>
                 )}
               </div>
-            ))}
-            {showNewCategoryInput && (
-              <div className="px-4 py-2">
-                <input
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddCategory();
-                    if (e.key === 'Escape') {
-                      setShowNewCategoryInput(false);
-                      setNewCategoryName('');
-                    }
+              {categoryTrees.map(tree => (
+                <SidebarItem
+                  key={tree.id}
+                  label={tree.name}
+                  icon={FolderTree}
+                  isIndented={true}
+                  isActive={currentTreeId === tree.id}
+                  onClick={() => setCurrentTreeId(tree.id)}
+                  isEditing={editingTreeId === tree.id}
+                  editedName={editingName}
+                  onNameChange={setEditingName}
+                  onSaveEdit={() => handleRenameTree(tree.id)}
+                  onCancelEdit={() => {
+                    setEditingTreeId(null);
+                    setEditingType(null);
+                    setEditingName('');
                   }}
-                  placeholder="Nom de la catégorie..."
-                  className="w-full bg-[#1a1a1a] border border-[#555] px-2 py-1 text-white text-sm font-mono"
-                  autoFocus
+                  onEdit={() => {
+                    setEditingTreeId(tree.id);
+                    setEditingType('tree');
+                    setEditingName(tree.name);
+                  }}
+                  onDelete={() => setDeleteConfirm({ type: 'tree', id: tree.id, name: tree.name })}
                 />
-              </div>
-            )}
-          </div>
-          <div className="p-2 border-t border-[#333] flex flex-col gap-1 shrink-0" style={{ backgroundColor: '#1e1e1e' }}>
-            <button
-              ref={addCategoryButtonRef}
-              onClick={() => {
-                setShowNewCategoryInput(true);
-                setShowNewTreeInput(false);
-              }}
-              className="flex items-center gap-2 px-3 py-2 bg-[#2d2d2d] hover:bg-[#3a3a3a] text-gray-300 hover:text-white text-sm font-mono border border-t-[#444] border-l-[#444] border-r-[#222] border-b-[#222] active:border-[#222] active:translate-x-[1px] active:translate-y-[1px] transition-all"
-            >
-              <Plus size={14} /> Ajouter Catégorie
-            </button>
+              ))}
+              {showNewTreeInput && selectedCategoryId === category.id && (
+                <div className="pl-8 px-4 py-2 border-l-2 border-blue-500 flex items-center gap-2">
+                  <input
+                    value={newTreeName}
+                    onChange={(e) => setNewTreeName(e.target.value)}
+                    onBlur={() => {
+                      if (!newTreeName.trim()) {
+                        setShowNewTreeInput(false);
+                        setSelectedCategoryId(null);
+                        setNewTreeName('');
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddTree();
+                      if (e.key === 'Escape') {
+                        setShowNewTreeInput(false);
+                        setSelectedCategoryId(null);
+                        setNewTreeName('');
+                      }
+                    }}
+                    placeholder="Nom de l'arbre..."
+                    className="flex-1 min-w-0 bg-[#1a1a1a] border border-[#555] px-2 py-1 text-white text-sm font-mono"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAddTree()}
+                    className="shrink-0 p-1.5 rounded bg-[#2d2d2d] border border-[#555] text-[#55ff55] hover:bg-[#3a3a3a] font-mono text-xs"
+                    title="Ajouter"
+                  >
+                    <Check size={14} strokeWidth={3} />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+          {showNewCategoryInput && (
+            <div className="px-4 py-2">
+              <input
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddCategory();
+                  if (e.key === 'Escape') {
+                    setShowNewCategoryInput(false);
+                    setNewCategoryName('');
+                  }
+                }}
+                placeholder="Nom de la catégorie..."
+                className="w-full bg-[#1a1a1a] border border-[#555] px-2 py-1 text-white text-sm font-mono"
+                autoFocus
+              />
+            </div>
+          )}
+        </div>
+        <div className="p-2 border-t border-[#333] flex flex-col gap-1 shrink-0" style={{ backgroundColor: '#1e1e1e' }}>
+          <button
+            ref={addCategoryButtonRef}
+            onClick={() => {
+              setShowNewCategoryInput(true);
+              setShowNewTreeInput(false);
+            }}
+            className="flex items-center gap-2 px-3 py-2 bg-[#2d2d2d] hover:bg-[#3a3a3a] text-gray-300 hover:text-white text-sm font-mono border border-t-[#444] border-l-[#444] border-r-[#222] border-b-[#222] active:border-[#222] active:translate-x-[1px] active:translate-y-[1px] transition-all"
+          >
+            <Plus size={14} /> Ajouter Catégorie
+          </button>
+          <button
+            type="button"
+            onClick={() => setTutorialStep(0)}
+            className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm font-mono text-gray-300 hover:text-white border-l-4 border-transparent hover:border-blue-500 hover:bg-[#2d2d2d] transition-all"
+            style={{ backgroundColor: '#1e1e1e' }}
+          >
+            <HelpCircle size={18} className="text-gray-400 shrink-0" />
+            Tutoriel
+          </button>
+          {user ? (
+            <div className="w-full flex items-center justify-between gap-2 px-4 py-3 text-sm font-mono border-l-4 border-blue-500 bg-[#2d2d2d]" style={{ backgroundColor: '#1e1e1e' }}>
+              <span className="text-gray-300 truncate" title={user.email ?? ''}>
+                {user.email ? (user.email.length > 22 ? `${user.email.slice(0, 20)}…` : user.email) : 'Compte'}
+              </span>
+              <button
+                type="button"
+                onClick={() => supabase.auth.signOut()}
+                className="shrink-0 px-2 py-1 text-xs bg-[#555] border border-[#444] hover:bg-[#666] text-white font-bold"
+              >
+                Déconnexion
+              </button>
+            </div>
+          ) : (
             <button
               type="button"
-              onClick={() => setTutorialStep(0)}
+              onClick={() => setShowAuthModal(true)}
               className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm font-mono text-gray-300 hover:text-white border-l-4 border-transparent hover:border-blue-500 hover:bg-[#2d2d2d] transition-all"
               style={{ backgroundColor: '#1e1e1e' }}
             >
-              <HelpCircle size={18} className="text-gray-400 shrink-0" />
-              Tutoriel
+              <User size={18} className="text-gray-400 shrink-0" />
+              Se connecter
             </button>
-            {user ? (
-              <div className="w-full flex items-center justify-between gap-2 px-4 py-3 text-sm font-mono border-l-4 border-blue-500 bg-[#2d2d2d]" style={{ backgroundColor: '#1e1e1e' }}>
-                <span className="text-gray-300 truncate" title={user.email ?? ''}>
-                  {user.email ? (user.email.length > 22 ? `${user.email.slice(0, 20)}…` : user.email) : 'Compte'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => supabase.auth.signOut()}
-                  className="shrink-0 px-2 py-1 text-xs bg-[#555] border border-[#444] hover:bg-[#666] text-white font-bold"
-                >
-                  Déconnexion
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowAuthModal(true)}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm font-mono text-gray-300 hover:text-white border-l-4 border-transparent hover:border-blue-500 hover:bg-[#2d2d2d] transition-all"
-                style={{ backgroundColor: '#1e1e1e' }}
-              >
-                <User size={18} className="text-gray-400 shrink-0" />
-                Se connecter
-              </button>
-            )}
-          </div>
-        </aside>
+          )}
+        </div>
+      </aside>
 
       {showAuthModal && (
         <AuthModal onClose={() => setShowAuthModal(false)} />
@@ -1589,14 +1683,14 @@ export default function Page() {
           <div
             className="absolute inset-0 flex pointer-events-none"
             style={{
-              alignItems: currentTutorialStep.target === 'center' ? 'center' : 'flex-end',
+              alignItems: currentTutorialStep.target === 'center' || (currentTutorialStep.target === 'node' && localQuests.length === 0) ? 'center' : 'flex-end',
               justifyContent: 'center',
-              paddingBottom: currentTutorialStep.target === 'center' ? 0 : 80,
+              paddingBottom: currentTutorialStep.target === 'center' || (currentTutorialStep.target === 'node' && localQuests.length === 0) ? 0 : 80,
             }}
           >
             <div className="pointer-events-auto">
               <TutorialBubble
-                text={currentTutorialStep.text}
+                text={tutorialText}
                 isLastStep={isLastStep}
                 onNext={() => {
                   if (isLastStep) setTutorialStep(null);
