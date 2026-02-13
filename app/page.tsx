@@ -17,7 +17,26 @@ import {
   MarkerType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Check, Plus, Lock, X, Edit2, Save, Link as LinkIcon, Unlink, Trash2, ChevronLeft, ChevronRight, Folder, FolderTree, Crosshair, User, HelpCircle } from 'lucide-react';
+import {
+  Check,
+  Plus,
+  Lock,
+  X,
+  Edit2,
+  Save,
+  Link as LinkIcon,
+  Unlink,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  Folder,
+  FolderTree,
+  Crosshair,
+  User,
+  HelpCircle,
+  Mail,
+  MessageSquare,
+} from 'lucide-react';
 
 // Animation des pointillés (edges) : défilement vers l'enfant via stroke-dashoffset
 if (typeof document !== 'undefined') {
@@ -36,7 +55,8 @@ if (typeof document !== 'undefined') {
     document.head.appendChild(style);
   }
 }
-import { supabase } from '@/lib/supabase'; 
+import { supabase } from '@/lib/supabase';
+import type { User as AuthUser } from '@supabase/supabase-js';
 
 // --- TYPES ---
 type DbStatus = 'available' | 'completed';
@@ -63,6 +83,7 @@ type Quest = {
   position_x: number;
   position_y: number;
   tree_id: string;
+  icon?: string | null; // émoji
 };
 
 type QuestLink = {
@@ -72,9 +93,21 @@ type QuestLink = {
 
 type QuestNodeData = {
   label: string;
-  icon?: string;
+  icon?: string; // émoji
   status: VisualStatus;
-  isSource?: boolean; // Si le noeud est sélectionné comme parent en mode liaison
+  isSource?: boolean;
+};
+
+// --- Bibliothèque d'émojis étendue (+100, style Minecraft/FTB) ---
+const EMOJI_BY_THEME: Record<string, string[]> = {
+  Outils: ['⛏️', '🪓', '🔨', '🪛', '🔧', '⚒️', '🛠️', '🗡️', '⚔️', '🛡️', '🏹', '🔫', '🪤', '🧲', '🔩', '⛓️'],
+  Blocs: ['🧱', '🪵', '🪨', '💎', '🟫', '🟩', '🟦', '⬛', '⬜', '🟥', '🟧', '🟨', '🟪', '🟫', '🔲', '🔳'],
+  Nature: ['🌲', '🌳', '🌴', '🍄', '🌻', '🌸', '🌺', '🪴', '🌿', '🍀', '🦋', '🐝', '🌊', '☀️', '🌙', '⭐', '🔥', '💧', '🌈'],
+  Nourriture: ['🍎', '🥕', '🍞', '🧀', '🍖', '🍕', '🍰', '🍪', '☕', '🍺', '🧪', '📦', '🥗', '🌮', '🍣', '🍜', '🧁', '🍩', '🥤'],
+  Activités: ['🏋️', '🚴', '🏃', '🧘', '🎸', '🎨', '📚', '✍️', '🎮', '🎯', '⚽', '🏀', '🎲', '🃏', '🎭', '🎪', '🎬', '📷'],
+  'Animaux & Nature': ['🦊', '🦁', '🦉', '🐺', '🐻', '🐼', '🐨', '🦄', '🐲', '🐉', '🌵', '🌴', '🍁', '🌾', '🪨', '🦅', '🐍', '🐢', '🦎'],
+  'Objets & Tech': ['💻', '📱', '🔋', '🛠️', '💡', '💎', '📡', '🔬', '🧪', '⚗️', '📦', '🗝️', '🔑', '📿', '⌚', '📷', '🎧', '🔊', '📻'],
+  Symboles: ['⭐', '🔥', '🎯', '🏆', '📈', '⚠️', '✅', '❌', '💚', '💙', '❤️', '🖤', '✨', '💫', '🌟', '🔮', '⚡', '🛡️', '⚔️'],
 };
 
 // --- 1. COMPOSANT NOEUD (CERCLE) ---
@@ -107,7 +140,7 @@ const QuestNode = (props: NodeProps<QuestNodeType>) => {
   }
 
   return (
-    <div className={`relative group transition-transform duration-200 ${isLocked ? 'opacity-90' : 'hover:scale-105'} ${scale}`}>
+    <div className={`relative group transition-transform duration-200 flex flex-col items-center ${isLocked ? 'opacity-90' : 'hover:scale-105'} ${scale}`}>
       {/* 
         HANDLE UNIQUE AU CENTRE : 
         Cela permet aux lignes de pointer vers le centre géométrique.
@@ -124,10 +157,20 @@ const QuestNode = (props: NodeProps<QuestNodeType>) => {
           boxShadow: isSource ? '0 0 25px #00ffff, 0 0 50px #00ffff' : '' 
         }}
       >
-        <span className="text-3xl z-10 select-none" style={{ color: iconColor }}>
+        <span className="text-3xl z-10 select-none flex items-center justify-center" style={{ color: iconColor }}>
           {isLocked ? <Lock size={24} /> : (nodeData.icon || '📦')}
         </span>
       </div>
+
+      {/* Titre sous le cercle : text-sm, ombre noire renforcée */}
+      <p
+        className="font-mono text-sm text-white text-center max-w-[100px] mt-2 leading-tight select-none pointer-events-none"
+        style={{
+          textShadow: '0 1px 4px #000, 0 2px 8px rgba(0,0,0,0.98), 0 0 12px rgba(0,0,0,0.95)',
+        }}
+      >
+        {nodeData.label || 'Quête'}
+      </p>
 
       {isCompleted && !isSource && (
         <div className="absolute top-0 right-0 bg-[#55ff55] rounded-full p-1 shadow-md z-20 border-2 border-black translate-x-1 -translate-y-1">
@@ -140,13 +183,103 @@ const QuestNode = (props: NodeProps<QuestNodeType>) => {
 
 const nodeTypes = { quest: QuestNode as React.ComponentType<NodeProps<Node<QuestNodeData, 'quest'>>> };
 
-// --- 2. MODALE DE CONFIRMATION DE SUPPRESSION ---
+// --- 2a. MODALE AUTH (OAuth uniquement) style Minecraft ---
+const AuthModal = ({ onClose }: { onClose: () => void }) => {
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState<'google' | 'discord' | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const backdropRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(t);
+  }, []);
+
+  const mouseDownOnBackdrop = React.useRef(false);
+  const handleBackdropMouseDown = (e: React.MouseEvent) => {
+    if (e.target === backdropRef.current) mouseDownOnBackdrop.current = true;
+  };
+  const handleBackdropMouseUp = (e: React.MouseEvent) => {
+    if (e.target === backdropRef.current && mouseDownOnBackdrop.current) onClose();
+    mouseDownOnBackdrop.current = false;
+  };
+
+  const handleOAuth = async (provider: 'google' | 'discord') => {
+    setError(null);
+    setLoading(provider);
+    try {
+      const { error: err } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined },
+      });
+      if (err) throw err;
+      onClose();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erreur de connexion');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  return (
+    <div
+      ref={backdropRef}
+      className={`fixed inset-0 z-[75] flex items-center justify-center bg-black/70 backdrop-blur-sm transition-opacity duration-200 ${mounted ? 'opacity-100' : 'opacity-0'}`}
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
+    >
+      <div
+        className={`bg-[#2a2a2a] border-4 border-[#1a1a1a] shadow-[6px_6px_0_0_#0d0d0d] font-mono text-white min-w-[340px] max-w-[400px] transition-all duration-200 ${mounted ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
+        style={{ boxShadow: '4px 4px 0 0 #0d0d0d' }}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="p-4 border-b-4 border-[#1a1a1a] text-center">
+          <p className="text-gray-300 text-sm">Connexion / Inscription</p>
+        </div>
+        <div className="p-4 flex flex-col gap-3">
+          <button
+            type="button"
+            onClick={() => handleOAuth('google')}
+            disabled={!!loading}
+            className="flex items-center justify-center gap-3 w-full py-4 bg-[#2d2d2d] border-4 border-[#444] border-t-[#555] border-l-[#555] hover:bg-[#3a3a3a] hover:border-[#555] disabled:opacity-60 text-white font-mono font-bold text-sm transition-all shadow-[3px_3px_0_0_#0d0d0d] active:shadow-none active:translate-x-[1px] active:translate-y-[1px]"
+          >
+            <Mail size={22} className="shrink-0" />
+            Continuer avec Google
+          </button>
+          <button
+            type="button"
+            onClick={() => handleOAuth('discord')}
+            disabled={!!loading}
+            className="flex items-center justify-center gap-3 w-full py-4 bg-[#2d2d2d] border-4 border-[#444] border-t-[#555] border-l-[#555] hover:bg-[#3a3a3a] hover:border-[#555] disabled:opacity-60 text-white font-mono font-bold text-sm transition-all shadow-[3px_3px_0_0_#0d0d0d] active:shadow-none active:translate-x-[1px] active:translate-y-[1px]"
+          >
+            <MessageSquare size={22} className="shrink-0" />
+            Continuer avec Discord
+          </button>
+          {error && (
+            <p className="text-red-300 text-sm font-medium bg-red-950/50 border-2 border-red-500/60 px-3 py-2 rounded">
+              {error}
+            </p>
+          )}
+          <button type="button" onClick={onClose} className="mt-1 py-2 text-gray-400 hover:text-white font-mono text-sm">
+            Annuler
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- 2b. MODALE DE CONFIRMATION DE SUPPRESSION GÉNÉRIQUE ---
 const ConfirmDeleteModal = ({ 
+  title = 'Suppression',
+  message,
   onConfirm, 
   onCancel 
 }: { 
-  onConfirm: () => void, 
-  onCancel: () => void 
+  title?: string;
+  message: string;
+  onConfirm: () => void; 
+  onCancel: () => void; 
 }) => {
   const backdropRef = React.useRef<HTMLDivElement>(null);
   const mouseDownOnBackdrop = React.useRef(false);
@@ -159,21 +292,27 @@ const ConfirmDeleteModal = ({
     }
     mouseDownOnBackdrop.current = false;
   };
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(t);
+  }, []);
+
   return (
     <div
       ref={backdropRef}
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      className={`fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm transition-opacity duration-200 ${mounted ? 'opacity-100' : 'opacity-0'}`}
       onMouseDown={handleBackdropMouseDown}
       onMouseUp={handleBackdropMouseUp}
     >
       <div 
-        className="bg-[#3b3b3b] border-4 border-[#1a1a1a] shadow-2xl p-6 font-mono text-white min-w-[400px]"
+        className={`bg-[#3b3b3b] border-4 border-[#1a1a1a] shadow-2xl p-6 font-mono text-white min-w-[400px] transition-all duration-200 ${mounted ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
         onMouseDown={(e) => e.stopPropagation()}
         onMouseUp={(e) => e.stopPropagation()}
       >
         <div className="mb-4">
-          <h3 className="text-xl font-bold text-red-400 mb-2">Suppression</h3>
-          <p className="text-gray-300">Voulez-vous vraiment supprimer cette quête ?</p>
+          <h3 className="text-xl font-bold text-red-400 mb-2">{title}</h3>
+          <p className="text-gray-300">{message}</p>
         </div>
         <div className="flex gap-3 justify-end">
           <button
@@ -208,20 +347,34 @@ const QuestModal = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
   const [editedDesc, setEditedDesc] = useState('');
+  const [editedIcon, setEditedIcon] = useState<string>('📦');
+  const [emojiPopoverOpen, setEmojiPopoverOpen] = useState(false);
 
   useEffect(() => {
     if (quest) {
       setEditedTitle(quest.title);
       setEditedDesc(quest.description || '');
+      setEditedIcon(quest.icon || '📦');
       setIsEditing(false);
+      setEmojiPopoverOpen(false);
     }
   }, [quest]);
 
   if (!quest) return null;
 
   const handleSave = () => {
-    onUpdate(quest.id, { title: editedTitle, description: editedDesc });
+    onUpdate(quest.id, {
+      title: editedTitle,
+      description: editedDesc,
+      icon: editedIcon || null,
+    });
     setIsEditing(false);
+  };
+
+  const applyEmoji = (emoji: string) => {
+    setEditedIcon(emoji);
+    onUpdate(quest.id, { icon: emoji });
+    setEmojiPopoverOpen(false);
   };
 
   const isCompleted = quest.status === 'completed';
@@ -237,15 +390,22 @@ const QuestModal = ({
     mouseDownOnBackdrop.current = false;
   };
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    if (!quest) return;
+    const t = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(t);
+  }, [quest]);
+
   return (
     <div
       ref={backdropRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-200 ${mounted ? 'opacity-100' : 'opacity-0'}`}
       onMouseDown={handleBackdropMouseDown}
       onMouseUp={handleBackdropMouseUp}
     >
       <div
-        className="w-[600px] bg-[#3b3b3b] border-2 border-[#1a1a1a] shadow-2xl flex flex-col font-mono text-white"
+        className={`w-[600px] max-h-[90vh] bg-[#3b3b3b] border-2 border-[#1a1a1a] shadow-2xl flex flex-col font-mono text-white transition-all duration-200 overflow-hidden ${mounted ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
         onMouseDown={(e) => e.stopPropagation()}
         onMouseUp={(e) => e.stopPropagation()}
       >
@@ -274,6 +434,46 @@ const QuestModal = ({
             <button onClick={onClose} className="p-1 hover:bg-red-900/50 rounded text-red-400"><X size={20} /></button>
           </div>
         </div>
+        <div className="flex items-center gap-3 px-4 py-3 border-b-2 border-[#1a1a1a] bg-[#252525] font-mono text-sm">
+          <span className="text-gray-400 shrink-0">Icône</span>
+          <span className="flex items-center justify-center w-11 h-11 rounded border-2 border-[#444] bg-[#1a1a1a] text-2xl">
+            {editedIcon}
+          </span>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setEmojiPopoverOpen((o) => !o)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-[#2d2d2d] border-2 border-[#55ff55]/50 hover:border-[#55ff55] hover:bg-[#333] text-[#55ff55] font-mono font-bold text-sm shadow-[2px_2px_0_0_#0d0d0d] transition-colors"
+            >
+              <span className="text-lg leading-none">{editedIcon}</span>
+              Changer l&apos;icône
+            </button>
+            {emojiPopoverOpen && (
+              <>
+                <div className="fixed inset-0 z-10" aria-hidden onClick={() => setEmojiPopoverOpen(false)} />
+                <div className="absolute left-0 top-full mt-1 z-20 w-[300px] max-h-[320px] overflow-y-auto bg-[#2a2a2a] border-4 border-[#1a1a1a] shadow-[4px_4px_0_0_#0d0d0d] p-2 font-mono">
+                  {Object.entries(EMOJI_BY_THEME).map(([theme, emojis]) => (
+                    <div key={theme} className="mb-2">
+                      <p className="text-[10px] text-gray-400 mb-0.5 uppercase tracking-wider">{theme}</p>
+                      <div className="grid grid-cols-8 gap-0.5">
+                        {emojis.map((emoji) => (
+                          <button
+                            key={`${theme}-${emoji}`}
+                            type="button"
+                            onClick={() => applyEmoji(emoji)}
+                            className="w-8 h-8 flex items-center justify-center text-lg border-2 border-[#444] bg-[#1a1a1a] hover:bg-[#3a3a3a] hover:border-[#555]"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
         <div className="flex border-b-2 border-[#1a1a1a] h-32 bg-[#333]">
           <div className="w-1/2 border-r-2 border-[#1a1a1a] p-2 flex flex-col items-center justify-center">
              <div 
@@ -296,9 +496,14 @@ const QuestModal = ({
           </div>
           <div className="w-1/2 p-2 bg-[#2b2b2b] opacity-50 flex items-center justify-center text-gray-500 italic text-xs">Rewards coming soon...</div>
         </div>
-        <div className="p-4 bg-[#212121] min-h-[120px]">
+        <div className="p-4 bg-[#212121] flex-1 min-h-[200px] flex flex-col overflow-y-auto">
            {isEditing ? (
-             <textarea value={editedDesc} onChange={(e) => setEditedDesc(e.target.value)} className="w-full h-full bg-[#1a1a1a] border border-[#555] p-2 text-white text-sm min-h-[100px]" />
+             <textarea
+               value={editedDesc}
+               onChange={(e) => setEditedDesc(e.target.value)}
+               className="w-full min-h-[200px] bg-[#1a1a1a] border-2 border-[#555] p-3 text-white text-sm font-mono resize-y"
+               placeholder="Décrivez cette quête..."
+             />
            ) : (
              <p className="text-gray-300 text-sm whitespace-pre-wrap">{quest.description || "Aucune description."}</p>
            )}
@@ -309,7 +514,13 @@ const QuestModal = ({
 };
 
 // --- 4. LOGIQUE PRINCIPALE ---
-function QuestTree({ currentTreeId }: { currentTreeId: string | null }) {
+type TutorialTargetRefs = {
+  addButtonRef?: React.RefObject<HTMLButtonElement | null>;
+  linkButtonRef?: React.RefObject<HTMLButtonElement | null>;
+  crosshairButtonRef?: React.RefObject<HTMLButtonElement | null>;
+};
+
+function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeId: string | null; tutorialTargetRefs?: TutorialTargetRefs; userId?: string | null }) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<QuestNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   
@@ -325,9 +536,8 @@ function QuestTree({ currentTreeId }: { currentTreeId: string | null }) {
   
   const { screenToFlowPosition, fitView } = useReactFlow();
 
-  // 1. Initialisation (Charger Quêtes ET Liens pour l'arbre actuel)
+  // 1. Initialisation (Charger Quêtes ET Liens pour l'arbre actuel — uniquement si connecté)
   useEffect(() => {
-    // Vider instantanément l'arbre pour éviter les flashs visuels
     setLocalQuests([]);
     setLocalLinks([]);
     setNodes([]);
@@ -336,14 +546,12 @@ function QuestTree({ currentTreeId }: { currentTreeId: string | null }) {
     setLinkSourceId(null);
     
     const init = async () => {
-      if (!currentTreeId) {
-        return;
-      }
+      if (!currentTreeId || !userId) return;
       
       try {
         const { data: qData } = await supabase
           .from('quests')
-          .select('id, title, description, status, position_x, position_y, tree_id')
+          .select('id, title, description, status, position_x, position_y, tree_id, icon')
           .eq('tree_id', currentTreeId);
         
         const { data: lData } = await supabase
@@ -369,7 +577,7 @@ function QuestTree({ currentTreeId }: { currentTreeId: string | null }) {
       }
     };
     init();
-  }, [currentTreeId, setNodes, setEdges]);
+  }, [currentTreeId, userId, setNodes, setEdges]);
 
   // 2. Calcul des nodes et edges (useMemo : recalc uniquement si localQuests, localLinks, linkSourceId changent)
   const computedNodesAndEdges = useMemo(() => {
@@ -398,7 +606,7 @@ function QuestTree({ currentTreeId }: { currentTreeId: string | null }) {
       data: {
         label: q.title,
         status: nodeStatusMap.get(q.id) || 'available',
-        icon: q.title.includes('Début') ? '🌲' : q.title.includes('Pierre') ? '⛏️' : '📜',
+        icon: q.icon || '📦',
         isSource: linkSourceId === q.id,
       },
     }));
@@ -452,11 +660,18 @@ function QuestTree({ currentTreeId }: { currentTreeId: string | null }) {
     setEdges(computedNodesAndEdges.edges);
   }, [computedNodesAndEdges, setNodes, setEdges]);
 
+  useEffect(() => {
+    if (currentTreeId && computedNodesAndEdges.nodes.length > 0) {
+      fitView({ duration: 500, padding: 0.8 });
+    }
+  }, [currentTreeId, computedNodesAndEdges.nodes.length, fitView]);
+
   // 3. Sauvegarde Position
   const onNodeDragStop = useCallback(async (_: any, node: Node<QuestNodeData>) => {
+    if (!userId) return;
     setLocalQuests(prev => prev.map(q => q.id === node.id ? { ...q, position_x: node.position.x, position_y: node.position.y } : q));
     await supabase.from('quests').update({ position_x: node.position.x, position_y: node.position.y }).eq('id', node.id);
-  }, []);
+  }, [userId]);
 
   // 4. INTERACTION NOEUD (Click Handler Central)
   const onNodeClick = useCallback(async (_: any, node: Node<QuestNodeData>) => {
@@ -474,11 +689,9 @@ function QuestTree({ currentTreeId }: { currentTreeId: string | null }) {
 
         // Vérifier si le lien existe déjà
         const exists = localLinks.some(l => l.parent_id === linkSourceId && l.child_id === node.id);
-        if (!exists) {
-            // Création Locale
+        if (!exists && userId) {
             const newLink = { parent_id: linkSourceId, child_id: node.id };
             setLocalLinks(prev => [...prev, newLink]);
-            // Création DB
             await supabase.from('quest_links').insert(newLink);
         }
         
@@ -492,7 +705,7 @@ function QuestTree({ currentTreeId }: { currentTreeId: string | null }) {
     const quest = localQuests.find(q => q.id === node.id);
     if (quest) setSelectedQuest(quest);
 
-  }, [isLinkingMode, linkSourceId, localLinks, localQuests]);
+  }, [isLinkingMode, linkSourceId, localLinks, localQuests, userId]);
 
 
   // Fonction récursive pour collecter tous les descendants d'une quête
@@ -545,14 +758,15 @@ function QuestTree({ currentTreeId }: { currentTreeId: string | null }) {
     ));
     setSelectedQuest(prev => prev && questsToUpdate.includes(prev.id) ? { ...prev, status: newStatus } : prev);
 
-    await supabase.from('quests').update({ status: newStatus }).in('id', questsToUpdate);
-  }, [localQuests, localLinks, getAllDescendants]);
+    if (userId) await supabase.from('quests').update({ status: newStatus }).in('id', questsToUpdate);
+  }, [localQuests, localLinks, getAllDescendants, userId]);
 
   const handleUpdateQuest = useCallback(async (id: string, updates: Partial<Quest>) => {
+    if (!userId) return;
     setLocalQuests(prev => prev.map(q => q.id === id ? { ...q, ...updates } : q));
     setSelectedQuest(prev => prev && prev.id === id ? { ...prev, ...updates } : prev);
     await supabase.from('quests').update(updates).eq('id', id);
-  }, []);
+  }, [userId]);
 
   const handleDeleteQuest = useCallback((questId: string) => {
     setShowDeleteConfirm(questId);
@@ -560,6 +774,7 @@ function QuestTree({ currentTreeId }: { currentTreeId: string | null }) {
 
   const confirmDeleteQuest = useCallback(async (questId: string) => {
     setShowDeleteConfirm(null);
+    if (!userId) return;
     const linksToDelete = localLinks.filter(
       link => link.parent_id === questId || link.child_id === questId
     );
@@ -572,21 +787,24 @@ function QuestTree({ currentTreeId }: { currentTreeId: string | null }) {
     for (const link of linksToDelete) {
       await supabase.from('quest_links').delete().eq('parent_id', link.parent_id).eq('child_id', link.child_id);
     }
-  }, [localLinks]);
+  }, [localLinks, userId]);
 
   const handleAddQuest = useCallback(async () => {
-    if (!currentTreeId) return;
+    if (!currentTreeId || !userId) return;
     const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
     const newQuest = {
       title: 'Nouvelle Quête',
+      description: null,
       status: 'available',
       position_x: center.x,
       position_y: center.y,
       tree_id: currentTreeId,
+      user_id: userId,
+      icon: '📦',
     };
     const { data } = await supabase.from('quests').insert(newQuest).select().single();
     if (data) setLocalQuests(prev => [...prev, data as Quest]);
-  }, [currentTreeId, screenToFlowPosition]);
+  }, [currentTreeId, screenToFlowPosition, userId]);
 
   const canCompleteSelected = useMemo(() => {
     if (!selectedQuest) return false;
@@ -609,12 +827,12 @@ function QuestTree({ currentTreeId }: { currentTreeId: string | null }) {
     
     // Vérifier si le lien existe déjà
     const exists = localLinks.some(l => l.parent_id === params.source && l.child_id === params.target);
-    if (!exists) {
+    if (!exists && userId) {
       const newLink = { parent_id: params.source, child_id: params.target };
       setLocalLinks(prev => [...prev, newLink]);
       await supabase.from('quest_links').insert(newLink);
     }
-  }, [localQuests, localLinks, currentTreeId]);
+  }, [localQuests, localLinks, currentTreeId, userId]);
 
   return (
     <div className="w-full h-full relative">
@@ -628,7 +846,7 @@ function QuestTree({ currentTreeId }: { currentTreeId: string | null }) {
         onNodeClick={onNodeClick}
         onConnect={onConnect}
         fitView
-        fitViewOptions={{ padding: 0.6 }}
+        fitViewOptions={{ padding: 0.8 }}
         minZoom={0.1}
         maxZoom={3}
         panOnDrag={true}
@@ -638,8 +856,9 @@ function QuestTree({ currentTreeId }: { currentTreeId: string | null }) {
         <Controls showZoom={false} showInteractive={false} showFitView={false} position="bottom-right" className="bg-[#333] border-2 border-[#111] shadow-xl rounded-none" />
         <Panel position="bottom-right" className="mb-2 mr-2">
           <button
+            ref={tutorialTargetRefs?.crosshairButtonRef}
             type="button"
-            onClick={() => fitView({ duration: 800, padding: 0.6 })}
+            onClick={() => fitView({ duration: 800, padding: 0.8 })}
             className="flex items-center justify-center w-10 h-10 font-mono border-2 bg-[#2d2d2d] text-gray-300 hover:text-white hover:bg-[#3a3a3a] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] border-t-[#444] border-l-[#444] border-r-[#1a1a1a] border-b-[#1a1a1a] shadow-[2px_2px_0_0_#0d0d0d] hover:shadow-[3px_3px_0_0_#0d0d0d] transition-all"
             title="Centrer l'arbre"
           >
@@ -654,7 +873,8 @@ function QuestTree({ currentTreeId }: { currentTreeId: string | null }) {
              </div>
           )}
 
-          <button 
+          <button
+            ref={tutorialTargetRefs?.linkButtonRef}
             onClick={() => { setIsLinkingMode(!isLinkingMode); setLinkSourceId(null); }}
             className={`
               flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase font-bold transition-all
@@ -670,7 +890,8 @@ function QuestTree({ currentTreeId }: { currentTreeId: string | null }) {
             {isLinkingMode ? 'Arrêter Liaison' : 'Lier Quêtes'}
           </button>
 
-          <button 
+          <button
+            ref={tutorialTargetRefs?.addButtonRef}
             onClick={handleAddQuest}
             className="flex items-center gap-2 px-4 py-2 font-mono text-sm uppercase font-bold transition-all
               border-t-2 border-l-2 border-[#888] border-r-2 border-b-2 border-[#111] bg-[#2d2d2d]
@@ -697,6 +918,7 @@ function QuestTree({ currentTreeId }: { currentTreeId: string | null }) {
 
       {showDeleteConfirm && (
         <ConfirmDeleteModal
+          message="Voulez-vous vraiment supprimer cette quête ?"
           onConfirm={() => confirmDeleteQuest(showDeleteConfirm)}
           onCancel={() => setShowDeleteConfirm(null)}
         />
@@ -713,23 +935,25 @@ const SidebarItem = ({
   isIndented = false,
   onClick,
   onEdit,
+  onDelete,
   isEditing,
   editedName,
   onNameChange,
   onSaveEdit,
   onCancelEdit
 }: { 
-  label: string, 
-  icon?: React.ComponentType<{ size?: number; className?: string }>, 
-  isActive?: boolean,
-  isIndented?: boolean,
-  onClick?: () => void,
-  onEdit?: () => void,
-  isEditing?: boolean,
-  editedName?: string,
-  onNameChange?: (value: string) => void,
-  onSaveEdit?: () => void,
-  onCancelEdit?: () => void
+  label: string; 
+  icon?: React.ComponentType<{ size?: number; className?: string }>; 
+  isActive?: boolean;
+  isIndented?: boolean;
+  onClick?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  isEditing?: boolean;
+  editedName?: string;
+  onNameChange?: (value: string) => void;
+  onSaveEdit?: () => void;
+  onCancelEdit?: () => void;
 }) => {
   return (
     <div
@@ -760,22 +984,75 @@ const SidebarItem = ({
           <span className={`text-sm font-mono flex-1 ${isActive ? 'text-white font-bold' : 'text-gray-300'}`}>
             {label}
           </span>
-          {onEdit && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit();
-              }}
-              className="opacity-0 group-hover:opacity-100 p-1 hover:bg-[#444] rounded transition-opacity"
-            >
-              <Edit2 size={14} className="text-gray-400 hover:text-white" />
-            </button>
-          )}
+          <div className="flex items-center gap-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            {onEdit && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
+                className="p-1 hover:bg-[#444] rounded"
+              >
+                <Edit2 size={14} className="text-gray-400 hover:text-white" />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                className="p-1 hover:bg-red-900/40 rounded"
+                title="Supprimer"
+              >
+                <Trash2 size={14} className="text-red-500/90 hover:text-red-400" />
+              </button>
+            )}
+          </div>
         </>
       )}
     </div>
   );
 };
+
+// --- TUTORIEL A à Z : CYCLE DE CRÉATION COMPLET ---
+type TutorialTarget = 'center' | 'sidebar' | 'navigation' | 'add' | 'link' | 'node' | 'crosshair' | 'add_tree' | 'add_category';
+const TUTORIAL_STEPS: { text: string; target: TutorialTarget }[] = [
+  { text: "Bienvenue dans l'Éditeur de Quêtes ! Tu vas créer des aventures en chaînes de tâches. Suis le guide de A à Z.", target: 'center' },
+  { text: "Étape 1 — Catégories : Clique sur « Ajouter Catégorie » pour créer un dossier thématique (ex : Chapitre 1, Projet X).", target: 'add_category' },
+  { text: "Étape 2 — Arbres (chapitres) : Survole une catégorie et clique sur le petit « + » pour créer un arbre de quêtes à l'intérieur.", target: 'add_tree' },
+  { text: "Étape 3 — Nœuds (tâches) : Clique sur « Ajouter » pour poser ta première quête au centre de la grille. Répète pour construire ton arbre.", target: 'add' },
+  { text: "Navigation : Molette pour zoomer, clic-glissé pour te déplacer sur la grille. Tu peux t'éloigner pour voir l'ensemble.", target: 'navigation' },
+  { text: "Étape 4 — Liaison : Active « Lier Quêtes », puis clique sur le parent puis sur l'enfant. Les flèches définissent l'ordre de déblocage.", target: 'link' },
+  { text: "Personnalisation : Clique sur une quête pour ouvrir son détail. Tu peux changer le titre, l'icône (émoji) et la description.", target: 'node' },
+  { text: "Progression : Valide une tâche dans la modale pour la passer en vert. Les quêtes suivantes (enfants) se débloquent au fur et à mesure.", target: 'node' },
+  { text: "Astuce : Le bouton cible (⊕) recentre la vue sur tout l'arbre. Bonne aventure !", target: 'crosshair' },
+];
+
+const TutorialBubble = ({ text, onNext, onQuit, isLastStep }: { text: string; onNext: () => void; onQuit: () => void; isLastStep?: boolean }) => (
+  <div
+    className="font-mono text-white p-4 max-w-sm border-4 border-[#1a1a1a] shadow-[4px_4px_0_0_#0d0d0d]"
+    style={{ backgroundColor: '#2a2a2a' }}
+  >
+    <p className="text-sm leading-relaxed mb-4">{text}</p>
+    <div className="flex gap-2 justify-end">
+      <button
+        type="button"
+        onClick={onQuit}
+        className="px-3 py-1.5 bg-[#555] border-2 border-[#333] hover:bg-[#666] text-white text-sm font-bold transition-all"
+      >
+        Quitter
+      </button>
+      <button
+        type="button"
+        onClick={onNext}
+        className="px-3 py-1.5 bg-[#3a5a3a] border-2 border-[#2a4a2a] hover:bg-[#4a6a4a] text-white text-sm font-bold transition-all"
+      >
+        {isLastStep ? 'Terminer' : 'Suivant'}
+      </button>
+    </div>
+  </div>
+);
 
 // --- WRAPPER ---
 export default function Page() {
@@ -792,9 +1069,72 @@ export default function Page() {
   const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
   const [showNewTreeInput, setShowNewTreeInput] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'category' | 'tree'; id: string; name: string } | null>(null);
+  const [tutorialStep, setTutorialStep] = useState<number | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
-  // Charger les catégories et arbres
   useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u ?? null));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const sidebarRef = React.useRef<HTMLElement>(null);
+  const categoryRowRef = React.useRef<HTMLDivElement>(null);
+  const mainRef = React.useRef<HTMLDivElement>(null);
+  const addButtonRef = React.useRef<HTMLButtonElement>(null);
+  const linkButtonRef = React.useRef<HTMLButtonElement>(null);
+  const crosshairButtonRef = React.useRef<HTMLButtonElement>(null);
+  const addCategoryButtonRef = React.useRef<HTMLButtonElement>(null);
+  const [spotlightRect, setSpotlightRect] = useState<DOMRect | null>(null);
+
+  useEffect(() => {
+    if (tutorialStep === null) {
+      setSpotlightRect(null);
+      return;
+    }
+    const step = TUTORIAL_STEPS[tutorialStep];
+    if (!step) {
+      setSpotlightRect(null);
+      return;
+    }
+    if (step.target === 'center') {
+      setSpotlightRect(null);
+      return;
+    }
+    const el =
+      step.target === 'sidebar' ? sidebarRef.current :
+      step.target === 'add_category' ? addCategoryButtonRef.current :
+      step.target === 'add_tree' ? categoryRowRef.current :
+      step.target === 'navigation' || step.target === 'node' ? mainRef.current :
+      step.target === 'add' ? addButtonRef.current :
+      step.target === 'link' ? linkButtonRef.current :
+      step.target === 'crosshair' ? crosshairButtonRef.current :
+      null;
+    if (el) {
+      setSpotlightRect(el.getBoundingClientRect());
+    } else {
+      setSpotlightRect(null);
+    }
+  }, [tutorialStep]);
+
+  const tutorialTargetRefs: TutorialTargetRefs = useMemo(() => ({
+    addButtonRef,
+    linkButtonRef,
+    crosshairButtonRef,
+  }), []);
+
+  // Charger les catégories et arbres (uniquement si connecté)
+  useEffect(() => {
+    if (!user) {
+      setCategories([]);
+      setTrees([]);
+      setCurrentTreeId(null);
+      return;
+    }
     const loadData = async () => {
       try {
         const { data: cats } = await supabase
@@ -810,12 +1150,8 @@ export default function Page() {
         if (cats) setCategories(cats as QuestCategory[]);
         if (treesData && treesData.length > 0) {
           setTrees(treesData as QuestTree[]);
-          // Forcer la sélection du premier arbre si aucun n'est sélectionné
-          if (!currentTreeId) {
-            setCurrentTreeId(treesData[0].id);
-          }
+          if (!currentTreeId) setCurrentTreeId(treesData[0].id);
         } else {
-          // Aucun arbre dans la base - ne pas planter
           setTrees([]);
           setCurrentTreeId(null);
         }
@@ -827,14 +1163,14 @@ export default function Page() {
       }
     };
     loadData();
-  }, []);
+  }, [user]);
 
   const handleAddCategory = async () => {
-    if (!newCategoryName.trim()) return;
+    if (!newCategoryName.trim() || !user) return;
     const maxOrder = categories.length > 0 ? Math.max(...categories.map(c => c.order_index)) : 0;
     const { data } = await supabase
       .from('quest_categories')
-      .insert({ name: newCategoryName, order_index: maxOrder + 1 })
+      .insert({ name: newCategoryName, order_index: maxOrder + 1, user_id: user.id })
       .select()
       .single();
     
@@ -846,7 +1182,7 @@ export default function Page() {
   };
 
   const handleAddTree = async () => {
-    if (!newTreeName.trim() || !selectedCategoryId) {
+    if (!newTreeName.trim() || !selectedCategoryId || !user) {
       setShowNewTreeInput(false);
       setSelectedCategoryId(null);
       setNewTreeName('');
@@ -856,7 +1192,7 @@ export default function Page() {
     const maxOrder = categoryTrees.length > 0 ? Math.max(...categoryTrees.map(t => t.order_index)) : 0;
     const { data } = await supabase
       .from('quest_trees')
-      .insert({ name: newTreeName, category_id: selectedCategoryId, order_index: maxOrder + 1 })
+      .insert({ name: newTreeName, category_id: selectedCategoryId, order_index: maxOrder + 1, user_id: user.id })
       .select()
       .single();
     
@@ -870,7 +1206,7 @@ export default function Page() {
   };
 
   const handleRenameCategory = async (id: string) => {
-    if (!editingName.trim() || editingType !== 'category') {
+    if (!user || !editingName.trim() || editingType !== 'category') {
       setEditingCategoryId(null);
       setEditingType(null);
       setEditingName('');
@@ -884,7 +1220,7 @@ export default function Page() {
   };
 
   const handleRenameTree = async (id: string) => {
-    if (!editingName.trim() || editingType !== 'tree') {
+    if (!user || !editingName.trim() || editingType !== 'tree') {
       setEditingTreeId(null);
       setEditingType(null);
       setEditingName('');
@@ -897,6 +1233,49 @@ export default function Page() {
     setEditingName('');
   };
 
+  const deleteQuestLinksForQuestIds = async (questIds: string[]) => {
+    for (const qid of questIds) {
+      await supabase.from('quest_links').delete().or(`parent_id.eq.${qid},child_id.eq.${qid}`);
+    }
+  };
+
+  const handleDeleteCategory = async (categoryId: string) => {
+    if (!user) return;
+    const categoryTrees = trees.filter(t => t.category_id === categoryId);
+    for (const tree of categoryTrees) {
+      const { data: questsData } = await supabase.from('quests').select('id').eq('tree_id', tree.id);
+      const questIds = (questsData || []).map((q: { id: string }) => q.id);
+      if (questIds.length > 0) {
+        await deleteQuestLinksForQuestIds(questIds);
+        await supabase.from('quests').delete().eq('tree_id', tree.id);
+      }
+      await supabase.from('quest_trees').delete().eq('id', tree.id);
+    }
+    await supabase.from('quest_categories').delete().eq('id', categoryId);
+    setTrees(prev => prev.filter(t => t.category_id !== categoryId));
+    setCategories(prev => prev.filter(c => c.id !== categoryId));
+    if (currentTreeId && categoryTrees.some(t => t.id === currentTreeId)) {
+      const remaining = trees.filter(t => t.category_id !== categoryId);
+      setCurrentTreeId(remaining.length > 0 ? remaining[0].id : null);
+    }
+  };
+
+  const handleDeleteTree = async (treeId: string) => {
+    if (!user) return;
+    const { data: questsData } = await supabase.from('quests').select('id').eq('tree_id', treeId);
+    const questIds = (questsData || []).map((q: { id: string }) => q.id);
+    if (questIds.length > 0) {
+      await deleteQuestLinksForQuestIds(questIds);
+      await supabase.from('quests').delete().eq('tree_id', treeId);
+    }
+    await supabase.from('quest_trees').delete().eq('id', treeId);
+    setTrees(prev => prev.filter(t => t.id !== treeId));
+    if (currentTreeId === treeId) {
+      const remaining = trees.filter(t => t.id !== treeId);
+      setCurrentTreeId(remaining.length > 0 ? remaining[0].id : null);
+    }
+  };
+
   const groupedTrees = categories.map(cat => ({
     category: cat,
     trees: trees.filter(t => t.category_id === cat.id).sort((a, b) => a.order_index - b.order_index)
@@ -904,16 +1283,20 @@ export default function Page() {
 
   const SIDEBAR_WIDTH = 256;
 
+  const currentTutorialStep = tutorialStep !== null ? TUTORIAL_STEPS[tutorialStep] : null;
+  const isLastStep = tutorialStep !== null && tutorialStep >= TUTORIAL_STEPS.length - 1;
+
   return (
     <div className="flex h-screen w-screen bg-[#101010] text-white font-sans overflow-hidden">
       {/* Sidebar avec transition de largeur */}
       <aside
-        className="flex flex-col z-20 border-r border-[#333] overflow-hidden shrink-0"
+        ref={sidebarRef}
+        className="flex flex-col z-20 border-r border-[#333] overflow-hidden shrink-0 transition-[width] duration-300 ease-in-out"
         style={{
           width: isSidebarCollapsed ? 0 : SIDEBAR_WIDTH,
           minWidth: isSidebarCollapsed ? 0 : SIDEBAR_WIDTH,
           backgroundColor: '#1e1e1e',
-          transition: 'width 0.3s ease',
+          transition: 'width 0.3s ease-in-out, min-width 0.3s ease-in-out',
           boxShadow: isSidebarCollapsed ? 'none' : '4px 0 15px rgba(0,0,0,0.6)',
         }}
       >
@@ -928,7 +1311,11 @@ export default function Page() {
         </div>
         <div className="flex-1 overflow-y-auto py-2 min-w-0" style={{ backgroundColor: '#1e1e1e' }}>
             {groupedTrees.map(({ category, trees: categoryTrees }, index) => (
-              <div key={category.id} className="group">
+              <div
+                key={category.id}
+                ref={index === 0 ? categoryRowRef : undefined}
+                className={`group ${tutorialStep !== null && TUTORIAL_STEPS[tutorialStep]?.target === 'add_tree' && index === 0 ? 'tutorial-add-tree' : ''}`}
+              >
                 {index > 0 && <div className="mx-3 my-1 border-t border-[#333]" />}
                 <div className="flex items-center">
                   <div className="flex-1">
@@ -949,6 +1336,7 @@ export default function Page() {
                         setEditingType('category');
                         setEditingName(category.name);
                       }}
+                      onDelete={() => setDeleteConfirm({ type: 'category', id: category.id, name: category.name })}
                     />
                   </div>
                   {!showNewTreeInput && !editingCategoryId && (
@@ -959,7 +1347,7 @@ export default function Page() {
                         setShowNewCategoryInput(false);
                         setSelectedCategoryId(category.id);
                       }}
-                      className="opacity-0 group-hover:opacity-100 p-1 mr-2 hover:bg-[#444] rounded transition-opacity"
+                      className={`p-1 mr-2 hover:bg-[#444] rounded transition-opacity ${tutorialStep !== null && TUTORIAL_STEPS[tutorialStep]?.target === 'add_tree' && index === 0 ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
                       title="Ajouter un arbre dans cette catégorie"
                     >
                       <Plus size={14} className="text-gray-400 hover:text-green-400" />
@@ -988,6 +1376,7 @@ export default function Page() {
                       setEditingType('tree');
                       setEditingName(tree.name);
                     }}
+                    onDelete={() => setDeleteConfirm({ type: 'tree', id: tree.id, name: tree.name })}
                   />
                 ))}
                 {showNewTreeInput && selectedCategoryId === category.id && (
@@ -1047,6 +1436,7 @@ export default function Page() {
           </div>
           <div className="p-2 border-t border-[#333] flex flex-col gap-1 shrink-0" style={{ backgroundColor: '#1e1e1e' }}>
             <button
+              ref={addCategoryButtonRef}
               onClick={() => {
                 setShowNewCategoryInput(true);
                 setShowNewTreeInput(false);
@@ -1057,22 +1447,60 @@ export default function Page() {
             </button>
             <button
               type="button"
+              onClick={() => setTutorialStep(0)}
               className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm font-mono text-gray-300 hover:text-white border-l-4 border-transparent hover:border-blue-500 hover:bg-[#2d2d2d] transition-all"
               style={{ backgroundColor: '#1e1e1e' }}
             >
               <HelpCircle size={18} className="text-gray-400 shrink-0" />
               Tutoriel
             </button>
-            <button
-              type="button"
-              className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm font-mono text-gray-300 hover:text-white border-l-4 border-transparent hover:border-blue-500 hover:bg-[#2d2d2d] transition-all"
-              style={{ backgroundColor: '#1e1e1e' }}
-            >
-              <User size={18} className="text-gray-400 shrink-0" />
-              Compte
-            </button>
+            {user ? (
+              <div className="w-full flex items-center justify-between gap-2 px-4 py-3 text-sm font-mono border-l-4 border-blue-500 bg-[#2d2d2d]" style={{ backgroundColor: '#1e1e1e' }}>
+                <span className="text-gray-300 truncate" title={user.email ?? ''}>
+                  {user.email ? (user.email.length > 22 ? `${user.email.slice(0, 20)}…` : user.email) : 'Compte'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => supabase.auth.signOut()}
+                  className="shrink-0 px-2 py-1 text-xs bg-[#555] border border-[#444] hover:bg-[#666] text-white font-bold"
+                >
+                  Déconnexion
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowAuthModal(true)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm font-mono text-gray-300 hover:text-white border-l-4 border-transparent hover:border-blue-500 hover:bg-[#2d2d2d] transition-all"
+                style={{ backgroundColor: '#1e1e1e' }}
+              >
+                <User size={18} className="text-gray-400 shrink-0" />
+                Se connecter
+              </button>
+            )}
           </div>
         </aside>
+
+      {showAuthModal && (
+        <AuthModal onClose={() => setShowAuthModal(false)} />
+      )}
+
+      {deleteConfirm && (
+        <ConfirmDeleteModal
+          title="Suppression"
+          message={
+            deleteConfirm.type === 'category'
+              ? `Supprimer la catégorie "${deleteConfirm.name}" ? Tous les arbres et quêtes associés seront supprimés.`
+              : `Supprimer l'arbre "${deleteConfirm.name}" ? Toutes ses quêtes seront supprimées.`
+          }
+          onConfirm={async () => {
+            if (deleteConfirm.type === 'category') await handleDeleteCategory(deleteConfirm.id);
+            else await handleDeleteTree(deleteConfirm.id);
+            setDeleteConfirm(null);
+          }}
+          onCancel={() => setDeleteConfirm(null)}
+        />
+      )}
 
       {/* Bouton flottant pour rouvrir la sidebar */}
       {isSidebarCollapsed && (
@@ -1084,14 +1512,102 @@ export default function Page() {
         </button>
       )}
 
-      <main 
-        className="flex-1 min-w-0 relative h-full shadow-[inset_0_0_20px_rgba(0,0,0,0.8)]"
+      <main
+        ref={mainRef}
+        className="flex-1 min-w-0 relative h-full shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] flex items-center justify-center"
         style={{ backgroundColor: '#1a1a1a' }}
       >
-        <ReactFlowProvider>
-          <QuestTree currentTreeId={currentTreeId} />
-        </ReactFlowProvider>
+        {!user ? (
+          <p className="font-mono text-gray-400 text-center text-lg px-4">
+            Veuillez vous connecter pour créer votre aventure
+          </p>
+        ) : (
+          <ReactFlowProvider>
+            <QuestTree currentTreeId={currentTreeId} tutorialTargetRefs={tutorialTargetRefs} userId={user.id} />
+          </ReactFlowProvider>
+        )}
       </main>
+
+      {/* Overlay tutoriel : spotlight + bulle */}
+      {tutorialStep !== null && currentTutorialStep && (
+        <div className="fixed inset-0 z-[60] pointer-events-none">
+          {/* Assombrissement global ; trou pour la cible via box-shadow (pas de pointer-events pour laisser cliquer la cible) */}
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundColor: spotlightRect ? 'transparent' : 'rgba(0,0,0,0.75)',
+              pointerEvents: 'none',
+            }}
+            aria-hidden
+          />
+          {spotlightRect && (
+            <>
+              <div
+                className="absolute pointer-events-none"
+                style={{
+                  left: spotlightRect.left - 8,
+                  top: spotlightRect.top - 8,
+                  width: spotlightRect.width + 16,
+                  height: spotlightRect.height + 16,
+                  boxShadow: '0 0 0 9999px rgba(0,0,0,0.75)',
+                  borderRadius: 4,
+                }}
+                aria-hidden
+              />
+              {/* Flèches animées (bounce) pointant vers le spotlight */}
+              <span
+                className="absolute text-[#55ff55] text-2xl font-bold animate-bounce pointer-events-none drop-shadow-[0_0_4px_#000]"
+                style={{ left: spotlightRect.left + spotlightRect.width / 2 - 12, top: spotlightRect.top - 28 }}
+                aria-hidden
+              >
+                ▼
+              </span>
+              <span
+                className="absolute text-[#55ff55] text-2xl font-bold animate-bounce pointer-events-none drop-shadow-[0_0_4px_#000]"
+                style={{ left: spotlightRect.left + spotlightRect.width / 2 - 12, top: spotlightRect.bottom + 4 }}
+                aria-hidden
+              >
+                ▲
+              </span>
+              <span
+                className="absolute text-[#55ff55] text-2xl font-bold animate-bounce pointer-events-none drop-shadow-[0_0_4px_#000]"
+                style={{ left: spotlightRect.left - 28, top: spotlightRect.top + spotlightRect.height / 2 - 14 }}
+                aria-hidden
+              >
+                ◀
+              </span>
+              <span
+                className="absolute text-[#55ff55] text-2xl font-bold animate-bounce pointer-events-none drop-shadow-[0_0_4px_#000]"
+                style={{ left: spotlightRect.right + 4, top: spotlightRect.top + spotlightRect.height / 2 - 14 }}
+                aria-hidden
+              >
+                ▶
+              </span>
+            </>
+          )}
+          {/* Bulle cliquable */}
+          <div
+            className="absolute inset-0 flex pointer-events-none"
+            style={{
+              alignItems: currentTutorialStep.target === 'center' ? 'center' : 'flex-end',
+              justifyContent: 'center',
+              paddingBottom: currentTutorialStep.target === 'center' ? 0 : 80,
+            }}
+          >
+            <div className="pointer-events-auto">
+              <TutorialBubble
+                text={currentTutorialStep.text}
+                isLastStep={isLastStep}
+                onNext={() => {
+                  if (isLastStep) setTutorialStep(null);
+                  else setTutorialStep((s) => (s ?? 0) + 1);
+                }}
+                onQuit={() => setTutorialStep(null)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
