@@ -222,9 +222,9 @@ const QuestNode = React.memo((props: NodeProps<QuestNodeType>) => {
           transition: 'box-shadow 0.2s ease-out'
         }}
       >
-        <span className="text-3xl z-10 select-none flex items-center justify-center" style={{ color: iconColor }}>
-          {isLocked ? <Lock size={24} /> : (nodeData.icon || '📦')}
-        </span>
+        <span className="text-3xl z-10 select-none flex items-center justify-center" style={{ color: iconColor, opacity: isLocked ? 0.5 : 1, filter: isLocked ? 'grayscale(100%)' : 'none' }}>
+  {nodeData.icon || '📦'}
+</span>
       </div>
 
       {/* Titre sous le cercle : text-sm, ombre noire renforcée */}
