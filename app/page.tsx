@@ -347,12 +347,14 @@ const ConfirmDeleteModal = ({
   title = 'Suppression',
   message,
   onConfirm, 
-  onCancel 
+  onCancel,
+  isDanger = true
 }: { 
   title?: string;
   message: string;
   onConfirm: () => void; 
-  onCancel: () => void; 
+  onCancel: () => void;
+  isDanger?: boolean;
 }) => {
   const backdropRef = React.useRef<HTMLDivElement>(null);
   const mouseDownOnBackdrop = React.useRef(false);
@@ -384,21 +386,25 @@ const ConfirmDeleteModal = ({
         onMouseUp={(e) => e.stopPropagation()}
       >
         <div className="mb-4">
-          <h3 className="text-xl font-bold text-red-400 mb-2">{title}</h3>
-          <p className="text-gray-300">{message}</p>
+          <h3 className={`text-xl font-bold mb-2 ${isDanger ? 'text-red-400' : 'text-yellow-400'}`}>{title}</h3>
+          <p className={isDanger ? 'text-red-300' : 'text-gray-300'}>{message}</p>
         </div>
         <div className="flex gap-3 justify-end">
           <button
             onClick={onCancel}
             className="px-6 py-2 bg-[#555] border-2 border-[#333] hover:bg-[#666] text-white font-bold transition-all"
           >
-            NON
+            Annuler
           </button>
           <button
             onClick={onConfirm}
-            className="px-6 py-2 bg-[#8b0000] border-2 border-[#660000] hover:bg-[#a00000] text-white font-bold transition-all"
+            className={`px-6 py-2 border-2 text-white font-bold transition-all ${
+              isDanger 
+                ? 'bg-[#8b0000] border-[#660000] hover:bg-[#a00000]' 
+                : 'bg-[#555] border-[#444] hover:bg-[#666]'
+            }`}
           >
-            OUI
+            Confirmer
           </button>
         </div>
       </div>
@@ -691,7 +697,11 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
   const [isLinkingMode, setIsLinkingMode] = useState(false);
   const [linkSourceId, setLinkSourceId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [deleteLinkConfirm, setDeleteLinkConfirm] = useState<{ parentId: string; childId: string } | null>(null);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  
+  // NOUVEAU : Ref pour détecter les clics vs vrais drags
+  const dragStartPosRef = useRef<{ x: number; y: number } | null>(null);
   
   const hasInitializedView = useRef(false);
   
@@ -826,15 +836,62 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     }
   }, [currentTreeId, computedNodesAndEdges.nodes.length, fitView]);
 
+  // AMÉLIORATION : Enregistrer la position de départ
   const onNodeDragStart = useCallback((_: any, node: Node<QuestNodeData>) => {
     setDraggingNodeId(node.id);
+    dragStartPosRef.current = { x: node.position.x, y: node.position.y };
   }, []);
 
-  // CORRECTION : Sauvegarde avec résolution de collisions en cascade
+  // AMÉLIORATION : Détecter clic vs drag avec tolérance de 5px
   const onNodeDragStop = useCallback(async (_: any, node: Node<QuestNodeData>) => {
     setDraggingNodeId(null);
     
-    if (!userId) return;
+    if (!userId) {
+      dragStartPosRef.current = null;
+      return;
+    }
+    
+    // NOUVEAU : Vérifier si c'est un clic (distance < 5px)
+    if (dragStartPosRef.current) {
+      const dx = node.position.x - dragStartPosRef.current.x;
+      const dy = node.position.y - dragStartPosRef.current.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance < 5) {
+        // C'est un CLIC, pas un drag - ouvrir la modale
+        dragStartPosRef.current = null;
+        
+        if (isLinkingMode) {
+          // Gestion du mode liaison
+          if (!linkSourceId) {
+            setLinkSourceId(node.id);
+          } else {
+            if (node.id === linkSourceId) {
+              setLinkSourceId(null);
+              return;
+            }
+
+            const exists = localLinks.some(l => l.parent_id === linkSourceId && l.child_id === node.id);
+            if (!exists) {
+              const newLink = { parent_id: linkSourceId, child_id: node.id };
+              setLocalLinks(prev => [...prev, newLink]);
+              await supabase.from('quest_links').insert(newLink);
+            }
+            
+            setLinkSourceId(null); 
+          }
+          return;
+        }
+
+        // Mode normal : ouvrir la modale
+        const quest = localQuests.find(q => q.id === node.id);
+        if (quest) setSelectedQuest(quest);
+        return;
+      }
+    }
+    
+    // C'est un VRAI DRAG (distance >= 5px) - sauvegarder la position
+    dragStartPosRef.current = null;
     
     const currentNodes = getNodes() as Node<QuestNodeData>[];
     
@@ -870,8 +927,9 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     });
     
     await Promise.all(updatePromises.filter(p => p !== null));
-  }, [userId, localQuests, getNodes, setNodes, setLocalQuests]);
+  }, [userId, localQuests, getNodes, setNodes, setLocalQuests, isLinkingMode, linkSourceId, localLinks]);
 
+  // CONSERVÉ : onNodeClick pour les vrais clics (sans mouvement)
   const onNodeClick = useCallback(async (_: any, node: Node<QuestNodeData>) => {
     if (isLinkingMode) {
       if (!linkSourceId) {
@@ -1000,10 +1058,11 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     return parentsIds.every(pid => localQuests.find(q => q.id === pid)?.status === 'completed');
   }, [selectedQuest, localLinks, localQuests]);
 
-  // NOUVELLE FONCTION : Gestion des connexions avec vérification bidirectionnelle
+  // AMÉLIORATION : Gestion stricte des doubles liaisons bidirectionnelles
   const onConnect = useCallback(async (params: any) => {
     if (!params.source || !params.target || !userId) return;
     
+    // Vérifier que les deux quêtes existent et appartiennent au bon arbre
     const sourceQuest = localQuests.find(q => q.id === params.source);
     const targetQuest = localQuests.find(q => q.id === params.target);
     
@@ -1011,18 +1070,23 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
       return;
     }
     
-    // Vérifier si le lien inverse existe
+    // Éviter les auto-liens (A -> A)
+    if (params.source === params.target) {
+      return;
+    }
+    
+    // Vérifier si le lien inverse existe (B -> A quand on veut A -> B)
     const reverseLink = localLinks.find(l => l.parent_id === params.target && l.child_id === params.source);
     
     if (reverseLink) {
-      // Supprimer le lien inverse
+      // Supprimer le lien inverse avant de créer le nouveau
       setLocalLinks(prev => prev.filter(l => !(l.parent_id === params.target && l.child_id === params.source)));
       await supabase.from('quest_links').delete()
         .eq('parent_id', params.target)
         .eq('child_id', params.source);
     }
     
-    // Vérifier si le lien existe déjà
+    // Vérifier si le lien existe déjà dans le bon sens
     const exists = localLinks.some(l => l.parent_id === params.source && l.child_id === params.target);
     if (!exists) {
       const newLink = { parent_id: params.source, child_id: params.target };
@@ -1031,12 +1095,9 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     }
   }, [localQuests, localLinks, currentTreeId, userId]);
 
-  // NOUVELLE FONCTION : Suppression de lien au clic
+  // AMÉLIORATION : Suppression de lien avec modale au lieu de window.confirm
   const onEdgeClick = useCallback(async (_: any, edge: Edge) => {
     if (!userId) return;
-    
-    const confirmed = window.confirm("Supprimer ce lien ?");
-    if (!confirmed) return;
     
     // Extraire parent_id et child_id de l'id de l'edge (format: e-{parent_id}-{child_id})
     const parts = edge.id.split('-');
@@ -1045,14 +1106,26 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     const parentId = parts[1];
     const childId = parts[2];
     
-    // Supprimer de l'état local
+    // Ouvrir la modale de confirmation
+    setDeleteLinkConfirm({ parentId, childId });
+  }, [userId]);
+
+  // NOUVEAU : Confirmation de suppression de lien
+  const confirmDeleteLink = useCallback(async () => {
+    if (!deleteLinkConfirm || !userId) return;
+    
+    const { parentId, childId } = deleteLinkConfirm;
+    
+    // Supprimer de l'état local pour réactivité immédiate
     setLocalLinks(prev => prev.filter(l => !(l.parent_id === parentId && l.child_id === childId)));
     
     // Supprimer de la BDD
     await supabase.from('quest_links').delete()
       .eq('parent_id', parentId)
       .eq('child_id', childId);
-  }, [userId]);
+    
+    setDeleteLinkConfirm(null);
+  }, [deleteLinkConfirm, userId]);
 
   return (
     <div className="w-full h-full relative">
@@ -1074,6 +1147,8 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
         panOnDrag={true}
         zoomOnScroll={true}
         panOnScroll={false}
+        edgesUpdatable={false}
+        edgesFocusable={true}
       >
         <Controls showZoom={false} showInteractive={false} showFitView={false} position="bottom-right" className="bg-[#333] border-2 border-[#111] shadow-xl rounded-none" />
         <Panel position="bottom-right" className="mb-2 mr-2">
@@ -1139,9 +1214,21 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
 
       {showDeleteConfirm && (
         <ConfirmDeleteModal
-          message="Voulez-vous vraiment supprimer cette quête ?"
+          title="Suppression de Quête"
+          message="Voulez-vous vraiment supprimer cette quête ? Tous les liens associés seront également supprimés."
           onConfirm={() => confirmDeleteQuest(showDeleteConfirm)}
           onCancel={() => setShowDeleteConfirm(null)}
+          isDanger={true}
+        />
+      )}
+
+      {deleteLinkConfirm && (
+        <ConfirmDeleteModal
+          title="Suppression de Lien"
+          message="Voulez-vous supprimer ce lien ?"
+          onConfirm={confirmDeleteLink}
+          onCancel={() => setDeleteLinkConfirm(null)}
+          isDanger={true}
         />
       )}
     </div>
@@ -1762,6 +1849,7 @@ export default function Page() {
             setDeleteConfirm(null);
           }}
           onCancel={() => setDeleteConfirm(null)}
+          isDanger={true}
         />
       )}
 
@@ -1790,16 +1878,16 @@ export default function Page() {
         )}
       </main>
 
-      {/* NOUVEAU : Badge Discord */}
-      <div className="fixed bottom-4 right-4 z-[80] flex items-center gap-3 bg-black/80 backdrop-blur-sm px-4 py-3 rounded-lg border border-gray-700 shadow-xl">
+      {/* AMÉLIORATION : Badge Discord plus discret */}
+      <div className="fixed bottom-4 right-4 z-[80] flex items-center gap-2 bg-black/70 backdrop-blur-sm px-3 py-2 rounded border border-gray-700/50 shadow-lg">
         <img 
           src="https://avatars.githubusercontent.com/u/221634597?v=4" 
           alt="Discord Avatar"
-          className="w-10 h-10 rounded-full border-2 border-blue-500"
+          className="w-8 h-8 rounded-full border border-blue-500/60"
         />
-        <div className="font-mono text-sm">
-          <p className="text-gray-400">Bugs ou suggestions ?</p>
-          <p className="text-white font-bold">Discord : salt4y</p>
+        <div className="font-mono text-xs">
+          <p className="text-gray-500 text-[10px]">Bugs/suggestions ?</p>
+          <p className="text-white font-bold">salt4y</p>
         </div>
       </div>
 
