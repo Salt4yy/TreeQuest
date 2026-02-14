@@ -1147,7 +1147,7 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
         panOnDrag={true}
         zoomOnScroll={true}
         panOnScroll={false}
-        defaultEdgeOptions={{ updatable: false, focusable: true }} // <--- La correction
+        defaultEdgeOptions={{ focusable: true }} 
       >
         <Controls showZoom={false} showInteractive={false} showFitView={false} position="bottom-right" className="bg-[#333] border-2 border-[#111] shadow-xl rounded-none" />
         <Panel position="bottom-right" className="mb-2 mr-2">
