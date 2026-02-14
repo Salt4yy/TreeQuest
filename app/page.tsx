@@ -805,9 +805,15 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
         type: 'straight',
         animated,
         className,
-        style: { stroke: strokeColor, strokeWidth, strokeDasharray },
+        style: { 
+          stroke: strokeColor, 
+          strokeWidth, 
+          strokeDasharray,
+          cursor: 'pointer', // Curseur main au survol
+          pointerEvents: 'all' // Force la capture des événements
+        },
         markerEnd: { type: MarkerType.ArrowClosed, color: strokeColor },
-        zIndex: -1,
+        // zIndex supprimé pour éviter les conflits de superposition
       };
     });
 
@@ -1052,24 +1058,20 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     await supabase.from('quest_links').insert(newLink);
   }, [localQuests, localLinks, currentTreeId, userId]);
 
-  // GESTIONNAIRES DE CLIC SUR LES LIENS
+  // GESTIONNAIRES DE CLIC SUR LES LIENS CORRIGÉS
+  // On utilise directement edge.source et edge.target au lieu de parser l'ID qui contient des UUIDs
   const onEdgeClick = useCallback((event: React.MouseEvent, edge: Edge) => {
     event.stopPropagation();
     if (!userId) return;
-    const parts = edge.id.split('-');
-    if (parts.length === 3) {
-      setDeleteLinkConfirm({ parentId: parts[1], childId: parts[2] });
-    }
+    // Plus de split('-') car les UUIDs contiennent des tirets !
+    setDeleteLinkConfirm({ parentId: edge.source, childId: edge.target });
   }, [userId]);
 
   const onEdgeContextMenu = useCallback((event: React.MouseEvent, edge: Edge) => {
     event.preventDefault(); // Empêche le menu Windows
     event.stopPropagation();
     if (!userId) return;
-    const parts = edge.id.split('-');
-    if (parts.length === 3) {
-      setDeleteLinkConfirm({ parentId: parts[1], childId: parts[2] });
-    }
+    setDeleteLinkConfirm({ parentId: edge.source, childId: edge.target });
   }, [userId]);
 
   const confirmDeleteLink = useCallback(async () => {
@@ -1106,7 +1108,7 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
         maxZoom={3}
         defaultEdgeOptions={{ 
           focusable: true,
-          interactionWidth: 30, // Zone de clic encore plus large pour faciliter la sélection
+          interactionWidth: 40, // Zone de clic augmentée à 40px
           style: { cursor: 'pointer', strokeWidth: 3 },
           type: 'straight'
         }}      
