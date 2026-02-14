@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useCallback, useState, useMemo } from 'react';
+import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react';
 import {
   ReactFlow,
   Controls,
@@ -17,6 +17,7 @@ import {
   MarkerType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+
 import {
   Check,
   Plus,
@@ -140,6 +141,7 @@ type QuestNodeData = {
   icon?: string; // émoji
   status: VisualStatus;
   isSource?: boolean;
+  isDragging?: boolean; // NOUVEAU : pour l'effet de soulevé
 };
 
 // --- Bibliothèque d'émojis étendue (+100, style Minecraft/FTB) ---
@@ -163,6 +165,7 @@ const QuestNode = React.memo((props: NodeProps<QuestNodeType>) => {
   const isCompleted = nodeData.status === 'completed';
   const isLocked = nodeData.status === 'locked';
   const isSource = nodeData.isSource; // Le noeud est-il sélectionné pour créer un lien ?
+  const isDragging = nodeData.isDragging; // NOUVEAU : est-il en cours de déplacement ?
 
   let borderColor = '#0099ff'; 
   let bgColor = '#2d2d2d';
@@ -183,8 +186,23 @@ const QuestNode = React.memo((props: NodeProps<QuestNodeType>) => {
     bgColor = '#003366'; // Fond bleu foncé
   }
 
+  // EFFET DE SOULEVÉ : Styles Minecraft "Flying"
+  let flyingTransform = '';
+  let flyingShadow = '';
+  if (isDragging) {
+    scale = 'scale-[1.15]';
+    flyingTransform = 'translateY(-12px)'; // Soulève le nœud vers le haut
+    flyingShadow = '0 20px 40px rgba(0,0,0,0.6), 0 0 30px rgba(0,150,255,0.4)'; // Ombre large et diffuse
+  }
+
   return (
-    <div className={`relative group transition-transform duration-200 flex flex-col items-center ${isLocked ? 'opacity-90' : 'hover:scale-105'} ${scale}`}>
+    <div 
+      className={`relative group transition-all duration-200 flex flex-col items-center ${isLocked ? 'opacity-90' : 'hover:scale-105'} ${scale}`}
+      style={{ 
+        transform: flyingTransform,
+        transition: 'transform 0.2s ease-out'
+      }}
+    >
       {/* 
         HANDLE UNIQUE AU CENTRE : 
         Cela permet aux lignes de pointer vers le centre géométrique.
@@ -194,11 +212,13 @@ const QuestNode = React.memo((props: NodeProps<QuestNodeType>) => {
       <Handle type="source" position={Position.Top} style={{ top: '50%', left: '50%', opacity: 0 }} />
 
       <div
-        className={`flex items-center justify-center rounded-full border-[5px] z-10 relative shadow-[0_4px_10px_rgba(0,0,0,0.5)] ${isSource ? 'animate-pulse' : ''}`}
+        className={`flex items-center justify-center rounded-full border-[5px] z-10 relative ${isSource ? 'animate-pulse' : ''}`}
         style={{ 
           width: 80, height: 80, 
-          borderColor, backgroundColor: bgColor,
-          boxShadow: isSource ? '0 0 25px #00ffff, 0 0 50px #00ffff' : '' 
+          borderColor, 
+          backgroundColor: bgColor,
+          boxShadow: flyingShadow || (isSource ? '0 0 25px #00ffff, 0 0 50px #00ffff' : '0 4px 10px rgba(0,0,0,0.5)'),
+          transition: 'box-shadow 0.2s ease-out'
         }}
       >
         <span className="text-3xl z-10 select-none flex items-center justify-center" style={{ color: iconColor }}>
@@ -581,7 +601,13 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
   const [linkSourceId, setLinkSourceId] = useState<string | null>(null); // ID du parent sélectionné
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   
-  const { screenToFlowPosition, fitView } = useReactFlow();
+  // NOUVEAU : État pour tracker le nœud en cours de déplacement (pour effet de soulevé)
+  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  
+  // Ref pour éviter le fitView sur chaque ajout de nœud
+  const hasInitializedView = useRef(false);
+  
+  const { screenToFlowPosition, fitView, getNodes } = useReactFlow();
 
   // 1. Initialisation (Charger Quêtes ET Liens pour l'arbre actuel — uniquement si connecté)
   useEffect(() => {
@@ -591,6 +617,7 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     setEdges([]);
     setSelectedQuest(null);
     setLinkSourceId(null);
+    hasInitializedView.current = false; // Reset du flag au changement d'arbre
     
     const init = async () => {
       if (!currentTreeId || !userId) return;
@@ -626,7 +653,7 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     init();
   }, [currentTreeId, userId, setNodes, setEdges]);
 
-  // 2. Calcul des nodes et edges (useMemo : recalc uniquement si localQuests, localLinks, linkSourceId changent)
+  // 2. Calcul des nodes et edges (useMemo : recalc uniquement si localQuests, localLinks, linkSourceId, draggingNodeId changent)
   const computedNodesAndEdges = useMemo(() => {
     if (localQuests.length === 0 || !currentTreeId) {
       return { nodes: [] as Node<QuestNodeData>[], edges: [] as Edge[] };
@@ -655,6 +682,7 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
         status: nodeStatusMap.get(q.id) || 'available',
         icon: q.icon || '📦',
         isSource: linkSourceId === q.id,
+        isDragging: draggingNodeId === q.id, // NOUVEAU : Passer l'état de dragging au nœud
       },
     }));
 
@@ -700,25 +728,97 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     });
 
     return { nodes: newNodes, edges: newEdges };
-  }, [localQuests, localLinks, linkSourceId, currentTreeId]);
+  }, [localQuests, localLinks, linkSourceId, draggingNodeId, currentTreeId]);
 
   useEffect(() => {
     setNodes(computedNodesAndEdges.nodes);
     setEdges(computedNodesAndEdges.edges);
   }, [computedNodesAndEdges, setNodes, setEdges]);
 
+  // CORRECTION 1 : fitView uniquement au premier chargement d'un arbre (pas sur chaque ajout de nœud)
   useEffect(() => {
-    if (currentTreeId && computedNodesAndEdges.nodes.length > 0) {
-      fitView({ duration: 500, padding: 0.8 });
+    if (currentTreeId && computedNodesAndEdges.nodes.length > 0 && !hasInitializedView.current) {
+      fitView({ duration: 500, padding: 1.4 }); // CORRECTION 1 : padding 1.4 pour vue plus dézoomée
+      hasInitializedView.current = true;
     }
   }, [currentTreeId, computedNodesAndEdges.nodes.length, fitView]);
 
-  // 3. Sauvegarde Position
+  // NOUVEAU : Handler pour démarrer le drag (effet de soulevé)
+  const onNodeDragStart = useCallback((_: any, node: Node<QuestNodeData>) => {
+    setDraggingNodeId(node.id);
+  }, []);
+
+  // NOUVEAU : Système de répulsion fluide pendant le drag
+  const onNodeDrag = useCallback((_: any, draggedNode: Node<QuestNodeData>) => {
+    const REPULSION_DISTANCE = 120; // Distance seuil en pixels
+    const REPULSION_STRENGTH = 0.6; // Force de poussée (0-1)
+    
+    setNodes((currentNodes) => {
+      return currentNodes.map((node) => {
+        // Ne pas déplacer le nœud en cours de drag
+        if (node.id === draggedNode.id) return node;
+        
+        // Calculer la distance entre le nœud déplacé et les autres
+        const dx = node.position.x - draggedNode.position.x;
+        const dy = node.position.y - draggedNode.position.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // Si la distance est inférieure au seuil, appliquer une force de répulsion
+        if (distance < REPULSION_DISTANCE && distance > 0) {
+          // Vecteur normalisé de répulsion (direction opposée au nœud déplacé)
+          const forceX = (dx / distance) * REPULSION_STRENGTH * (REPULSION_DISTANCE - distance);
+          const forceY = (dy / distance) * REPULSION_STRENGTH * (REPULSION_DISTANCE - distance);
+          
+          return {
+            ...node,
+            position: {
+              x: node.position.x + forceX,
+              y: node.position.y + forceY,
+            },
+          };
+        }
+        
+        return node;
+      });
+    });
+  }, [setNodes]);
+
+  // 3. Sauvegarde Position (+ toutes les positions modifiées par la répulsion)
   const onNodeDragStop = useCallback(async (_: any, node: Node<QuestNodeData>) => {
+    setDraggingNodeId(null); // NOUVEAU : Reset de l'état de dragging
+    
     if (!userId) return;
-    setLocalQuests(prev => prev.map(q => q.id === node.id ? { ...q, position_x: node.position.x, position_y: node.position.y } : q));
-    await supabase.from('quests').update({ position_x: node.position.x, position_y: node.position.y }).eq('id', node.id);
-  }, [userId]);
+    
+    // Récupérer toutes les positions actuelles des nœuds
+    const allCurrentNodes = getNodes();
+    
+    // Mettre à jour l'état local avec toutes les nouvelles positions
+    setLocalQuests(prev => prev.map(q => {
+      const matchingNode = allCurrentNodes.find(n => n.id === q.id);
+      if (matchingNode) {
+        return {
+          ...q,
+          position_x: matchingNode.position.x,
+          position_y: matchingNode.position.y,
+        };
+      }
+      return q;
+    }));
+    
+    // Sauvegarder TOUTES les positions en base de données (pas seulement le nœud déplacé)
+    const updatePromises = allCurrentNodes.map(async (n) => {
+      const quest = localQuests.find(q => q.id === n.id);
+      if (quest && (quest.position_x !== n.position.x || quest.position_y !== n.position.y)) {
+        return supabase
+          .from('quests')
+          .update({ position_x: n.position.x, position_y: n.position.y })
+          .eq('id', n.id);
+      }
+      return null;
+    });
+    
+    await Promise.all(updatePromises.filter(p => p !== null));
+  }, [userId, localQuests, getNodes, setLocalQuests]);
 
   // 4. INTERACTION NOEUD (Click Handler Central)
   const onNodeClick = useCallback(async (_: any, node: Node<QuestNodeData>) => {
@@ -889,11 +989,13 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodeDragStart={onNodeDragStart}
+        onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onNodeClick={onNodeClick}
         onConnect={onConnect}
         fitView
-        fitViewOptions={{ padding: 0.8 }}
+        fitViewOptions={{ padding: 1.4 }}
         minZoom={0.1}
         maxZoom={3}
         panOnDrag={true}
@@ -905,7 +1007,7 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
           <button
             ref={tutorialTargetRefs?.crosshairButtonRef}
             type="button"
-            onClick={() => fitView({ duration: 800, padding: 0.8 })}
+            onClick={() => fitView({ duration: 800, padding: 1.4 })}
             className="flex items-center justify-center w-10 h-10 font-mono border-2 bg-[#2d2d2d] text-gray-300 hover:text-white hover:bg-[#3a3a3a] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] border-t-[#444] border-l-[#444] border-r-[#1a1a1a] border-b-[#1a1a1a] shadow-[2px_2px_0_0_#0d0d0d] hover:shadow-[3px_3px_0_0_#0d0d0d] transition-all"
             title="Centrer l'arbre"
           >
