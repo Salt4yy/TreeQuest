@@ -40,7 +40,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 
-// Animation des pointillés (edges) : défilement vers l'enfant via stroke-dashoffset
+
 if (typeof document !== 'undefined') {
   const style = document.createElement('style');
   style.id = 'quest-edges-dash-animation';
@@ -66,7 +66,7 @@ if (typeof document !== 'undefined') {
     document.head.appendChild(style);
   }
   
-  // Custom Scrollbars style Minecraft
+
   const scrollbarStyle = document.createElement('style');
   scrollbarStyle.id = 'custom-scrollbars';
   if (!document.getElementById(scrollbarStyle.id)) {
@@ -101,7 +101,7 @@ if (typeof document !== 'undefined') {
     document.head.appendChild(scrollbarStyle);
   }
   
-  // Masquer l'attribution React Flow
+
   const hideAttribution = document.createElement('style');
   hideAttribution.id = 'hide-reactflow-attribution';
   if (!document.getElementById(hideAttribution.id)) {
@@ -116,7 +116,7 @@ if (typeof document !== 'undefined') {
 import { supabase } from '@/lib/supabase';
 import type { User as AuthUser } from '@supabase/supabase-js';
 
-// --- TYPES ---
+
 type DbStatus = 'available' | 'completed';
 type VisualStatus = 'locked' | 'available' | 'completed';
 
@@ -141,7 +141,7 @@ type Quest = {
   position_x: number;
   position_y: number;
   tree_id: string;
-  icon?: string | null; // émoji
+  icon?: string | null;
 };
 
 type QuestLink = {
@@ -151,13 +151,13 @@ type QuestLink = {
 
 type QuestNodeData = {
   label: string;
-  icon?: string; // émoji
+  icon?: string; 
   status: VisualStatus;
   isSource?: boolean;
   isDragging?: boolean;
 };
 
-// --- Bibliothèque d'émojis étendue (+100, style Minecraft/FTB) ---
+
 const EMOJI_BY_THEME: Record<string, string[]> = {
   "Outils & Combat": ["⛏️", "🪓", "🗡️", "⚔️", "🛡️", "🏹", "🔫", "🧨", "💣", "🔧", "🔨", "🪛", "🔩", "⚙️", "⛓️", "🧲", "🎣", "🔭", "🔬"],
   "Ressources & Blocs": ["💎", "🪵", "🧱", "🪨", "🩸", "💧", "🔥", "🧊", "⚡", "🔋", "🛢️", "📦", "📜", "⚱️", "🏺", "🛒", "🪙"],
@@ -169,7 +169,7 @@ const EMOJI_BY_THEME: Record<string, string[]> = {
   "Transport & Base": ["🏠", "🏰", "⛺", "🏭", "🏥", "🚀", "🚁", "✈️", "🚗", "🏎️", "🚂", "⛵", "🚤", "⚓", "🗺️", "🛏️", "🚪"]
 };
 
-// --- 1. COMPOSANT NOEUD (CERCLE) avec React.memo pour optimisation ---
+
 type QuestNodeType = Node<QuestNodeData, 'quest'>;
 const QuestNode = React.memo((props: NodeProps<QuestNodeType>) => {
   const { data } = props;
@@ -198,13 +198,12 @@ const QuestNode = React.memo((props: NodeProps<QuestNodeType>) => {
     bgColor = '#003366';
   }
 
-  // EFFET DE SOULEVÉ ADOUCI
   let flyingTransform = '';
   let flyingShadow = '';
   if (isDragging) {
-    scale = 'scale-[1.05]'; // Réduit de 1.15 à 1.05
-    flyingTransform = 'translateY(-8px)'; // Réduit de -12px à -8px
-    flyingShadow = '0 12px 24px rgba(0,0,0,0.4), 0 0 20px rgba(0,150,255,0.2)'; // Ombre plus subtile
+    scale = 'scale-[1.05]'; 
+    flyingTransform = 'translateY(-8px)'; 
+    flyingShadow = '0 12px 24px rgba(0,0,0,0.4), 0 0 20px rgba(0,150,255,0.2)'; 
   }
 
   return (
@@ -254,7 +253,7 @@ QuestNode.displayName = 'QuestNode';
 
 const nodeTypes = { quest: QuestNode as React.ComponentType<NodeProps<Node<QuestNodeData, 'quest'>>> };
 
-// --- 2a. MODALE AUTH (OAuth uniquement) style Minecraft ---
+
 const AuthModal = ({ onClose }: { onClose: () => void }) => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<'google' | 'discord' | null>(null);
@@ -342,7 +341,7 @@ const AuthModal = ({ onClose }: { onClose: () => void }) => {
   );
 };
 
-// --- 2b. MODALE DE CONFIRMATION DE SUPPRESSION GÉNÉRIQUE ---
+
 const ConfirmDeleteModal = ({ 
   title = 'Suppression',
   message,
@@ -412,7 +411,7 @@ const ConfirmDeleteModal = ({
   );
 };
 
-// --- 3. MODALE DETAILS ---
+
 const QuestModal = ({ 
   quest, onClose, onUpdate, onToggleStatus, onDelete, canComplete
 }: { 
@@ -600,18 +599,18 @@ const QuestModal = ({
   );
 };
 
-// --- 4. LOGIQUE PRINCIPALE ---
+
 type TutorialTargetRefs = {
   addButtonRef?: React.RefObject<HTMLButtonElement | null>;
   linkButtonRef?: React.RefObject<HTMLButtonElement | null>;
   crosshairButtonRef?: React.RefObject<HTMLButtonElement | null>;
 };
 
-// Résolution des collisions en cascade
+
 const resolveOverlaps = (nodes: Node<QuestNodeData>[], draggedNodeId: string): Node<QuestNodeData>[] => {
-  const NODE_RADIUS = 40; // Rayon du cercle (80px / 2)
-  const PADDING = 20; // Espace minimum entre nœuds
-  const ITERATIONS = 4; // Itérations pour stabiliser les cascades
+  const NODE_RADIUS = 40; 
+  const PADDING = 20; 
+  const ITERATIONS = 4; 
   
   let updatedNodes = [...nodes];
   
@@ -809,11 +808,11 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
           stroke: strokeColor, 
           strokeWidth, 
           strokeDasharray,
-          cursor: 'pointer', // Curseur main au survol
-          pointerEvents: 'all' // Force la capture des événements
+          cursor: 'pointer',
+          pointerEvents: 'all' 
         },
         markerEnd: { type: MarkerType.ArrowClosed, color: strokeColor },
-        // zIndex supprimé pour éviter les conflits de superposition
+        
       };
     });
 
@@ -841,12 +840,12 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
   setDraggingNodeId(null);
   if (!userId) return;
 
-  // Calcul de la distance parcourue
+ 
   const dx = dragStartPosRef.current ? node.position.x - dragStartPosRef.current.x : 100;
   const dy = dragStartPosRef.current ? node.position.y - dragStartPosRef.current.y : 100;
   const distance = Math.sqrt(dx * dx + dy * dy);
 
-  // TOLÉRANCE : Si mouvement < 8px, on considère comme un clic
+  
   if (distance < 8) {
     const quest = localQuests.find(q => q.id === node.id);
     if (quest) setSelectedQuest(quest);
@@ -856,7 +855,7 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
   
   dragStartPosRef.current = null;
     
-    // C'est un VRAI DRAG
+    
     dragStartPosRef.current = null;
     
     const currentNodes = getNodes() as Node<QuestNodeData>[];
@@ -900,14 +899,14 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
              return;
         }
 
-        // Vérification de doublon (même lien) et remplacement
+        
         const existingLink = localLinks.find(l => 
           (l.parent_id === linkSourceId && l.child_id === node.id) ||
           (l.parent_id === node.id && l.child_id === linkSourceId)
         );
 
         if (existingLink) {
-           // Supprimer l'existant
+           
            setLocalLinks(prev => prev.filter(l => l !== existingLink));
            await supabase.from('quest_links').delete()
              .eq('parent_id', existingLink.parent_id)
@@ -1035,14 +1034,14 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     if (!params.source || !params.target || !userId) return;
     if (params.source === params.target) return;
 
-    // 1. Chercher si un lien existe déjà entre ces deux-là (A->B OU B->A)
+    
     const existingLink = localLinks.find(l => 
       (l.parent_id === params.source && l.child_id === params.target) ||
       (l.parent_id === params.target && l.child_id === params.source)
     );
 
     if (existingLink) {
-      // 2. Supprimer l'ancien lien partout (Local + BDD) pour le remplacer
+      
       setLocalLinks(prev => prev.filter(l => 
         !(l.parent_id === existingLink.parent_id && l.child_id === existingLink.child_id)
       ));
@@ -1052,23 +1051,22 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
         .eq('child_id', existingLink.child_id);
     }
 
-    // 3. Créer le nouveau lien propre
+    
     const newLink = { parent_id: params.source, child_id: params.target };
     setLocalLinks(prev => [...prev, newLink]);
     await supabase.from('quest_links').insert(newLink);
   }, [localQuests, localLinks, currentTreeId, userId]);
 
-  // GESTIONNAIRES DE CLIC SUR LES LIENS CORRIGÉS
-  // On utilise directement edge.source et edge.target au lieu de parser l'ID qui contient des UUIDs
+  
   const onEdgeClick = useCallback((event: React.MouseEvent, edge: Edge) => {
     event.stopPropagation();
     if (!userId) return;
-    // Plus de split('-') car les UUIDs contiennent des tirets !
+    
     setDeleteLinkConfirm({ parentId: edge.source, childId: edge.target });
   }, [userId]);
 
   const onEdgeContextMenu = useCallback((event: React.MouseEvent, edge: Edge) => {
-    event.preventDefault(); // Empêche le menu Windows
+    event.preventDefault(); 
     event.stopPropagation();
     if (!userId) return;
     setDeleteLinkConfirm({ parentId: edge.source, childId: edge.target });
@@ -1108,7 +1106,7 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
         maxZoom={3}
         defaultEdgeOptions={{ 
           focusable: true,
-          interactionWidth: 40, // Zone de clic augmentée à 40px
+          interactionWidth: 40, 
           style: { cursor: 'pointer', strokeWidth: 3 },
           type: 'straight'
         }}      
@@ -1198,7 +1196,7 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
   );
 }
 
-// --- SIDEBAR ITEM COMPONENT ---
+
 const SidebarItem = ({ 
   label, 
   icon: Icon, 
@@ -1286,7 +1284,7 @@ const SidebarItem = ({
   );
 };
 
-// --- TUTORIEL ---
+
 type TutorialTarget = 'center' | 'sidebar' | 'navigation' | 'add' | 'link' | 'node' | 'crosshair' | 'add_tree' | 'add_category';
 const TUTORIAL_STEPS: { text: string; target: TutorialTarget }[] = [
   { text: "Bienvenue dans l'Éditeur de Quêtes ! Tu vas créer des aventures en chaînes de tâches. Suis le guide de A à Z.", target: 'center' },
@@ -1326,7 +1324,7 @@ const TutorialBubble = ({ text, onNext, onQuit, isLastStep }: { text: string; on
   </div>
 );
 
-// --- WRAPPER ---
+
 export default function Page() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [categories, setCategories] = useState<QuestCategory[]>([]);
@@ -1840,7 +1838,7 @@ export default function Page() {
           </ReactFlowProvider>
         )}
 
-        {/* --- BADGE DISCORD STYLE MINECRAFT (Positionné dans le main) --- */}
+        
         <div className="absolute bottom-4 left-4 z-[80] flex items-center gap-2 bg-[#2d2d2d] border-2 border-[#1a1a1a] shadow-[4px_4px_0_0_#0d0d0d] px-3 py-2 min-w-[200px] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_#0d0d0d] transition-all">
           <img 
             src="https://avatars.githubusercontent.com/u/221634597?v=4" 
