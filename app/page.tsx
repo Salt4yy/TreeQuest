@@ -100,6 +100,18 @@ if (typeof document !== 'undefined') {
     `;
     document.head.appendChild(scrollbarStyle);
   }
+  
+  // Masquer l'attribution React Flow
+  const hideAttribution = document.createElement('style');
+  hideAttribution.id = 'hide-reactflow-attribution';
+  if (!document.getElementById(hideAttribution.id)) {
+    hideAttribution.textContent = `
+      .react-flow__attribution {
+        display: none !important;
+      }
+    `;
+    document.head.appendChild(hideAttribution);
+  }
 }
 import { supabase } from '@/lib/supabase';
 import type { User as AuthUser } from '@supabase/supabase-js';
@@ -142,19 +154,19 @@ type QuestNodeData = {
   icon?: string; // émoji
   status: VisualStatus;
   isSource?: boolean;
-  isDragging?: boolean; // NOUVEAU : pour l'effet de soulevé
+  isDragging?: boolean;
 };
 
 // --- Bibliothèque d'émojis étendue (+100, style Minecraft/FTB) ---
 const EMOJI_BY_THEME: Record<string, string[]> = {
-  Outils: ['⛏️', '🪓', '🔨', '🪛', '🔧', '⚒️', '🛠️', '🗡️', '⚔️', '🛡️', '🏹', '🔫', '🪤', '🧲', '🔩', '⛓️'],
-  Blocs: ['🧱', '🪵', '🪨', '💎', '🟫', '🟩', '🟦', '⬛', '⬜', '🟥', '🟧', '🟨', '🟪', '🔲', '🔳'],
-  Nature: ['🌲', '🌳', '🌴', '🍄', '🌻', '🌸', '🌺', '🪴', '🌿', '🍀', '🦋', '🐝', '🌊', '☀️', '🌙', '⭐', '🔥', '💧', '🌈'],
-  Nourriture: ['🍎', '🥕', '🍞', '🧀', '🍖', '🍕', '🍰', '🍪', '☕', '🍺', '🧪', '📦', '🥗', '🌮', '🍣', '🍜', '🧁', '🍩', '🥤'],
-  Activités: ['🏋️', '🚴', '🏃', '🧘', '🎸', '🎨', '📚', '✍️', '🎮', '🎯', '⚽', '🏀', '🎲', '🃏', '🎭', '🎪', '🎬', '📷'],
-  'Animaux & Nature': ['🦊', '🦁', '🦉', '🐺', '🐻', '🐼', '🐨', '🦄', '🐲', '🐉', '🌵', '🌴', '🍁', '🌾', '🪨', '🦅', '🐍', '🐢', '🦎'],
-  'Objets & Tech': ['💻', '📱', '🔋', '🛠️', '💡', '💎', '📡', '🔬', '🧪', '⚗️', '📦', '🗝️', '🔑', '📿', '⌚', '📷', '🎧', '🔊', '📻'],
-  Symboles: ['⭐', '🔥', '🎯', '🏆', '📈', '⚠️', '✅', '❌', '💚', '💙', '❤️', '🖤', '✨', '💫', '🌟', '🔮', '⚡', '🛡️', '⚔️'],
+  "Outils & Combat": ["⛏️", "🪓", "🗡️", "⚔️", "🛡️", "🏹", "🔫", "🧨", "💣", "🔧", "🔨", "🪛", "🔩", "⚙️", "⛓️", "🧲", "🎣", "🔭", "🔬"],
+  "Ressources & Blocs": ["💎", "🪵", "🧱", "🪨", "🩸", "💧", "🔥", "🧊", "⚡", "🔋", "🛢️", "📦", "📜", "⚱️", "🏺", "🛒", "🪙"],
+  "Nature & Animaux": ["🌲", "🌳", "🌵", "🍄", "🌹", "🌻", "🌿", "🍀", "🍁", "🐉", "🦕", "🦖", "🐺", "🦊", "🐻", "🦄", "🦅", "🦇", "🕷️", "🕸️"],
+  "Nourriture & Potions": ["🍎", "🍖", "🍗", "🥩", "🍞", "🧀", "🍕", "🍔", "🍺", "🍷", "🧪", "⚗️", "🍼", "🍪", "🎂", "🍬", "🍫", "🍯"],
+  "Magie & Mystique": ["✨", "🔮", "🧿", "⚰️", "💀", "👻", "👽", "👾", "🧙", "🧚", "🧞", "🧛", "🧟", "🌑", "🌕", "🌟", "💫", "☄️"],
+  "Tech & Redstone": ["💻", "🖥️", "🖨️", "🖱️", "💾", "💿", "📱", "📷", "📹", "📺", "📻", "📡", "🚀", "🛸", "🤖", "🖲️", "🔌", "💡"],
+  "Symboles & UI": ["✅", "❌", "⚠️", "⛔", "🚩", "🏁", "🏆", "🥇", "🎯", "👑", "❤️", "💙", "💚", "💛", "💜", "🖤", "💯", "💢", "💤"],
+  "Transport & Base": ["🏠", "🏰", "⛺", "🏭", "🏥", "🚀", "🚁", "✈️", "🚗", "🏎️", "🚂", "⛵", "🚤", "⚓", "🗺️", "🛏️", "🚪"]
 };
 
 // --- 1. COMPOSANT NOEUD (CERCLE) avec React.memo pour optimisation ---
@@ -165,8 +177,8 @@ const QuestNode = React.memo((props: NodeProps<QuestNodeType>) => {
   const nodeData: QuestNodeData = data;
   const isCompleted = nodeData.status === 'completed';
   const isLocked = nodeData.status === 'locked';
-  const isSource = nodeData.isSource; // Le noeud est-il sélectionné pour créer un lien ?
-  const isDragging = nodeData.isDragging; // NOUVEAU : est-il en cours de déplacement ?
+  const isSource = nodeData.isSource;
+  const isDragging = nodeData.isDragging;
 
   let borderColor = '#0099ff'; 
   let bgColor = '#2d2d2d';
@@ -180,20 +192,19 @@ const QuestNode = React.memo((props: NodeProps<QuestNodeType>) => {
     borderColor = '#55ff55'; bgColor = '#2d2d2d'; iconColor = 'white';
   }
   
-  // Style spécial quand on le sélectionne comme Parent
   if (isSource) {
-    borderColor = '#00ffff'; // Cyan brillant
+    borderColor = '#00ffff';
     scale = 'scale-110';
-    bgColor = '#003366'; // Fond bleu foncé
+    bgColor = '#003366';
   }
 
-  // EFFET DE SOULEVÉ : Styles Minecraft "Flying"
+  // EFFET DE SOULEVÉ ADOUCI
   let flyingTransform = '';
   let flyingShadow = '';
   if (isDragging) {
-    scale = 'scale-[1.15]';
-    flyingTransform = 'translateY(-12px)'; // Soulève le nœud vers le haut
-    flyingShadow = '0 20px 40px rgba(0,0,0,0.6), 0 0 30px rgba(0,150,255,0.4)'; // Ombre large et diffuse
+    scale = 'scale-[1.05]'; // Réduit de 1.15 à 1.05
+    flyingTransform = 'translateY(-8px)'; // Réduit de -12px à -8px
+    flyingShadow = '0 12px 24px rgba(0,0,0,0.4), 0 0 20px rgba(0,150,255,0.2)'; // Ombre plus subtile
   }
 
   return (
@@ -204,11 +215,6 @@ const QuestNode = React.memo((props: NodeProps<QuestNodeType>) => {
         transition: 'transform 0.2s ease-out'
       }}
     >
-      {/* 
-        HANDLE UNIQUE AU CENTRE : 
-        Cela permet aux lignes de pointer vers le centre géométrique.
-        Comme le noeud est au-dessus (z-index), la ligne s'arrête visuellement au bord.
-      */}
       <Handle type="target" position={Position.Top} style={{ top: '50%', left: '50%', opacity: 0 }} />
       <Handle type="source" position={Position.Top} style={{ top: '50%', left: '50%', opacity: 0 }} />
 
@@ -223,11 +229,10 @@ const QuestNode = React.memo((props: NodeProps<QuestNodeType>) => {
         }}
       >
         <span className="text-3xl z-10 select-none flex items-center justify-center" style={{ color: iconColor, opacity: isLocked ? 0.5 : 1, filter: isLocked ? 'grayscale(100%)' : 'none' }}>
-  {nodeData.icon || '📦'}
-</span>
+          {nodeData.icon || '📦'}
+        </span>
       </div>
 
-      {/* Titre sous le cercle : text-sm, ombre noire renforcée */}
       <p
         className="font-mono text-sm text-white text-center max-w-[100px] mt-2 leading-tight select-none pointer-events-none"
         style={{
@@ -417,15 +422,26 @@ const QuestModal = ({
   const [editedDesc, setEditedDesc] = useState('');
   const [editedIcon, setEditedIcon] = useState<string>('📦');
   const [emojiPopoverOpen, setEmojiPopoverOpen] = useState(false);
+  
+  // CORRECTIF : Utiliser un ref pour tracker l'ID précédent et éviter le reset pendant l'édition
+  const prevQuestIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (quest) {
+    if (!quest) {
+      prevQuestIdRef.current = null;
+      return;
+    }
+    
+    if (quest.id !== prevQuestIdRef.current) {
+      // Nouvelle quête, reset complet
       setEditedTitle(quest.title);
       setEditedDesc(quest.description || '');
       setEditedIcon(quest.icon || '📦');
       setIsEditing(false);
       setEmojiPopoverOpen(false);
+      prevQuestIdRef.current = quest.id;
     }
+    // Si même quête, ne rien faire pour éviter de reset pendant l'édition d'emoji
   }, [quest]);
 
   if (!quest) return null;
@@ -588,29 +604,99 @@ type TutorialTargetRefs = {
   crosshairButtonRef?: React.RefObject<HTMLButtonElement | null>;
 };
 
+// NOUVELLE FONCTION : Résolution des collisions en cascade
+const resolveOverlaps = (nodes: Node<QuestNodeData>[], draggedNodeId: string): Node<QuestNodeData>[] => {
+  const NODE_RADIUS = 40; // Rayon du cercle (80px / 2)
+  const PADDING = 20; // Espace minimum entre nœuds
+  const ITERATIONS = 4; // Itérations pour stabiliser les cascades
+  
+  let updatedNodes = [...nodes];
+  
+  for (let iter = 0; iter < ITERATIONS; iter++) {
+    let hasMovement = false;
+    
+    for (let i = 0; i < updatedNodes.length; i++) {
+      for (let j = i + 1; j < updatedNodes.length; j++) {
+        const node1 = updatedNodes[i];
+        const node2 = updatedNodes[j];
+        
+        const dx = node1.position.x - node2.position.x;
+        const dy = node1.position.y - node2.position.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const minDistance = (NODE_RADIUS + PADDING) * 2;
+        
+        if (distance < minDistance && distance > 0) {
+          hasMovement = true;
+          const overlap = minDistance - distance;
+          const angle = Math.atan2(dy, dx);
+          
+          const pushNode1 = node1.id !== draggedNodeId;
+          const pushNode2 = node2.id !== draggedNodeId;
+          
+          if (pushNode1 && pushNode2) {
+            // Aucun n'est le nœud déplacé, pousser les deux
+            const halfPush = overlap / 2;
+            updatedNodes[i] = {
+              ...node1,
+              position: {
+                x: node1.position.x + Math.cos(angle) * halfPush,
+                y: node1.position.y + Math.sin(angle) * halfPush
+              }
+            };
+            updatedNodes[j] = {
+              ...node2,
+              position: {
+                x: node2.position.x - Math.cos(angle) * halfPush,
+                y: node2.position.y - Math.sin(angle) * halfPush
+              }
+            };
+          } else if (pushNode1) {
+            // Pousser uniquement node1 (node2 est déplacé)
+            updatedNodes[i] = {
+              ...node1,
+              position: {
+                x: node1.position.x + Math.cos(angle) * overlap,
+                y: node1.position.y + Math.sin(angle) * overlap
+              }
+            };
+          } else if (pushNode2) {
+            // Pousser uniquement node2 (node1 est déplacé)
+            updatedNodes[j] = {
+              ...node2,
+              position: {
+                x: node2.position.x - Math.cos(angle) * overlap,
+                y: node2.position.y - Math.sin(angle) * overlap
+              }
+            };
+          }
+        }
+      }
+    }
+    
+    // Optimisation : arrêter si aucun mouvement à cette itération
+    if (!hasMovement) break;
+  }
+  
+  return updatedNodes;
+};
+
 function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeId: string | null; tutorialTargetRefs?: TutorialTargetRefs; userId?: string | null }) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<QuestNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   
-  // DONNÉES LOCALES
   const [localQuests, setLocalQuests] = useState<Quest[]>([]);
-  const [localLinks, setLocalLinks] = useState<QuestLink[]>([]); // Nouvelle table de liens
+  const [localLinks, setLocalLinks] = useState<QuestLink[]>([]);
   
-  // ÉTATS UI
   const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null);
   const [isLinkingMode, setIsLinkingMode] = useState(false);
-  const [linkSourceId, setLinkSourceId] = useState<string | null>(null); // ID du parent sélectionné
+  const [linkSourceId, setLinkSourceId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  
-  // NOUVEAU : État pour tracker le nœud en cours de déplacement (pour effet de soulevé)
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   
-  // Ref pour éviter le fitView sur chaque ajout de nœud
   const hasInitializedView = useRef(false);
   
   const { screenToFlowPosition, fitView, getNodes } = useReactFlow();
 
-  // 1. Initialisation (Charger Quêtes ET Liens pour l'arbre actuel — uniquement si connecté)
   useEffect(() => {
     setLocalQuests([]);
     setLocalLinks([]);
@@ -618,7 +704,7 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     setEdges([]);
     setSelectedQuest(null);
     setLinkSourceId(null);
-    hasInitializedView.current = false; // Reset du flag au changement d'arbre
+    hasInitializedView.current = false;
     
     const init = async () => {
       if (!currentTreeId || !userId) return;
@@ -635,7 +721,6 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
         
         if (qData && qData.length > 0) {
           const questIds = qData.map(q => q.id);
-          // Filtrer les liens pour ne garder que ceux entre quêtes de cet arbre
           const filteredLinks = (lData || []).filter(
             (link: QuestLink) => questIds.includes(link.parent_id) && questIds.includes(link.child_id)
           );
@@ -654,7 +739,6 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     init();
   }, [currentTreeId, userId, setNodes, setEdges]);
 
-  // 2. Calcul des nodes et edges (useMemo : recalc uniquement si localQuests, localLinks, linkSourceId, draggingNodeId changent)
   const computedNodesAndEdges = useMemo(() => {
     if (localQuests.length === 0 || !currentTreeId) {
       return { nodes: [] as Node<QuestNodeData>[], edges: [] as Edge[] };
@@ -683,11 +767,10 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
         status: nodeStatusMap.get(q.id) || 'available',
         icon: q.icon || '📦',
         isSource: linkSourceId === q.id,
-        isDragging: draggingNodeId === q.id, // NOUVEAU : Passer l'état de dragging au nœud
+        isDragging: draggingNodeId === q.id,
       },
     }));
 
-    // Edges directionnelles : verrouillé = pointillés gris, disponible = bleu animé, terminé = vert épais + flèche
     const newEdges: Edge[] = localLinks.map((link): Edge => {
       const parent = localQuests.find(q => q.id === link.parent_id);
       const child = localQuests.find(q => q.id === link.child_id);
@@ -736,66 +819,34 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     setEdges(computedNodesAndEdges.edges);
   }, [computedNodesAndEdges, setNodes, setEdges]);
 
-  // CORRECTION 1 : fitView uniquement au premier chargement d'un arbre (pas sur chaque ajout de nœud)
   useEffect(() => {
     if (currentTreeId && computedNodesAndEdges.nodes.length > 0 && !hasInitializedView.current) {
-      fitView({ duration: 500, padding: 1.4 }); // CORRECTION 1 : padding 1.4 pour vue plus dézoomée
+      fitView({ duration: 500, padding: 1.4 });
       hasInitializedView.current = true;
     }
   }, [currentTreeId, computedNodesAndEdges.nodes.length, fitView]);
 
-  // NOUVEAU : Handler pour démarrer le drag (effet de soulevé)
   const onNodeDragStart = useCallback((_: any, node: Node<QuestNodeData>) => {
     setDraggingNodeId(node.id);
   }, []);
 
-  // NOUVEAU : Système de répulsion fluide pendant le drag
-  const onNodeDrag = useCallback((_: any, draggedNode: Node<QuestNodeData>) => {
-    const REPULSION_DISTANCE = 120; // Distance seuil en pixels
-    const REPULSION_STRENGTH = 0.6; // Force de poussée (0-1)
-    
-    setNodes((currentNodes) => {
-      return currentNodes.map((node) => {
-        // Ne pas déplacer le nœud en cours de drag
-        if (node.id === draggedNode.id) return node;
-        
-        // Calculer la distance entre le nœud déplacé et les autres
-        const dx = node.position.x - draggedNode.position.x;
-        const dy = node.position.y - draggedNode.position.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        // Si la distance est inférieure au seuil, appliquer une force de répulsion
-        if (distance < REPULSION_DISTANCE && distance > 0) {
-          // Vecteur normalisé de répulsion (direction opposée au nœud déplacé)
-          const forceX = (dx / distance) * REPULSION_STRENGTH * (REPULSION_DISTANCE - distance);
-          const forceY = (dy / distance) * REPULSION_STRENGTH * (REPULSION_DISTANCE - distance);
-          
-          return {
-            ...node,
-            position: {
-              x: node.position.x + forceX,
-              y: node.position.y + forceY,
-            },
-          };
-        }
-        
-        return node;
-      });
-    });
-  }, [setNodes]);
-
-  // 3. Sauvegarde Position (+ toutes les positions modifiées par la répulsion)
+  // CORRECTION : Sauvegarde avec résolution de collisions en cascade
   const onNodeDragStop = useCallback(async (_: any, node: Node<QuestNodeData>) => {
-    setDraggingNodeId(null); // NOUVEAU : Reset de l'état de dragging
+    setDraggingNodeId(null);
     
     if (!userId) return;
     
-    // Récupérer toutes les positions actuelles des nœuds
-    const allCurrentNodes = getNodes();
+    const currentNodes = getNodes();
     
-    // Mettre à jour l'état local avec toutes les nouvelles positions
+    // Résoudre les chevauchements en cascade
+    const resolvedNodes = resolveOverlaps(currentNodes, node.id);
+    
+    // Mettre à jour les nœuds avec les nouvelles positions
+    setNodes(resolvedNodes);
+    
+    // Mettre à jour l'état local
     setLocalQuests(prev => prev.map(q => {
-      const matchingNode = allCurrentNodes.find(n => n.id === q.id);
+      const matchingNode = resolvedNodes.find(n => n.id === q.id);
       if (matchingNode) {
         return {
           ...q,
@@ -806,8 +857,8 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
       return q;
     }));
     
-    // Sauvegarder TOUTES les positions en base de données (pas seulement le nœud déplacé)
-    const updatePromises = allCurrentNodes.map(async (n) => {
+    // Sauvegarder en BDD
+    const updatePromises = resolvedNodes.map(async (n) => {
       const quest = localQuests.find(q => q.id === n.id);
       if (quest && (quest.position_x !== n.position.x || quest.position_y !== n.position.y)) {
         return supabase
@@ -819,23 +870,18 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     });
     
     await Promise.all(updatePromises.filter(p => p !== null));
-  }, [userId, localQuests, getNodes, setLocalQuests]);
+  }, [userId, localQuests, getNodes, setNodes, setLocalQuests]);
 
-  // 4. INTERACTION NOEUD (Click Handler Central)
   const onNodeClick = useCallback(async (_: any, node: Node<QuestNodeData>) => {
-    // CAS A : MODE LIAISON ACTIF
     if (isLinkingMode) {
       if (!linkSourceId) {
-        // Étape 1 : On sélectionne le Parent
         setLinkSourceId(node.id);
       } else {
-        // Étape 2 : On sélectionne l'Enfant (Création du lien)
         if (node.id === linkSourceId) {
-             setLinkSourceId(null); // Annuler si on reclique sur le même
+             setLinkSourceId(null);
              return;
         }
 
-        // Vérifier si le lien existe déjà
         const exists = localLinks.some(l => l.parent_id === linkSourceId && l.child_id === node.id);
         if (!exists && userId) {
             const newLink = { parent_id: linkSourceId, child_id: node.id };
@@ -843,33 +889,27 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
             await supabase.from('quest_links').insert(newLink);
         }
         
-        // On reste en mode source selectionné ou on reset ? Resettons pour être propre.
         setLinkSourceId(null); 
       }
       return;
     }
 
-    // CAS B : MODE NORMAL (Ouvrir Modale)
     const quest = localQuests.find(q => q.id === node.id);
     if (quest) setSelectedQuest(quest);
 
   }, [isLinkingMode, linkSourceId, localLinks, localQuests, userId]);
 
-
-  // Fonction récursive pour collecter tous les descendants d'une quête
   const getAllDescendants = useCallback((questId: string, visited: Set<string> = new Set()): string[] => {
     if (visited.has(questId)) return [];
     visited.add(questId);
     
-    // Filtrer uniquement les liens où cette quête est parente
     const directChildren = localLinks
       .filter(link => link.parent_id === questId)
       .map(link => link.child_id)
-      .filter(childId => !visited.has(childId)); // Éviter les cycles
+      .filter(childId => !visited.has(childId));
     
     const allDescendants: string[] = [...directChildren];
     
-    // Récursion sur chaque enfant pour obtenir les petits-enfants, etc.
     directChildren.forEach(childId => {
       const childDescendants = getAllDescendants(childId, visited);
       childDescendants.forEach(descId => {
@@ -882,7 +922,6 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     return allDescendants;
   }, [localLinks]);
 
-  // 5. FONCTIONS DE MODIFICATION
   const handleToggleStatus = useCallback(async (quest: Quest) => {
     const newStatus: DbStatus = quest.status === 'completed' ? 'available' : 'completed';
 
@@ -961,11 +1000,10 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     return parentsIds.every(pid => localQuests.find(q => q.id === pid)?.status === 'completed');
   }, [selectedQuest, localLinks, localQuests]);
 
-  // Handler pour les connexions via drag & drop (si utilisé)
+  // NOUVELLE FONCTION : Gestion des connexions avec vérification bidirectionnelle
   const onConnect = useCallback(async (params: any) => {
-    if (!params.source || !params.target) return;
+    if (!params.source || !params.target || !userId) return;
     
-    // Vérifier que les deux nœuds appartiennent à l'arbre actuel
     const sourceQuest = localQuests.find(q => q.id === params.source);
     const targetQuest = localQuests.find(q => q.id === params.target);
     
@@ -973,14 +1011,48 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
       return;
     }
     
+    // Vérifier si le lien inverse existe
+    const reverseLink = localLinks.find(l => l.parent_id === params.target && l.child_id === params.source);
+    
+    if (reverseLink) {
+      // Supprimer le lien inverse
+      setLocalLinks(prev => prev.filter(l => !(l.parent_id === params.target && l.child_id === params.source)));
+      await supabase.from('quest_links').delete()
+        .eq('parent_id', params.target)
+        .eq('child_id', params.source);
+    }
+    
     // Vérifier si le lien existe déjà
     const exists = localLinks.some(l => l.parent_id === params.source && l.child_id === params.target);
-    if (!exists && userId) {
+    if (!exists) {
       const newLink = { parent_id: params.source, child_id: params.target };
       setLocalLinks(prev => [...prev, newLink]);
       await supabase.from('quest_links').insert(newLink);
     }
   }, [localQuests, localLinks, currentTreeId, userId]);
+
+  // NOUVELLE FONCTION : Suppression de lien au clic
+  const onEdgeClick = useCallback(async (_: any, edge: Edge) => {
+    if (!userId) return;
+    
+    const confirmed = window.confirm("Supprimer ce lien ?");
+    if (!confirmed) return;
+    
+    // Extraire parent_id et child_id de l'id de l'edge (format: e-{parent_id}-{child_id})
+    const parts = edge.id.split('-');
+    if (parts.length !== 3) return;
+    
+    const parentId = parts[1];
+    const childId = parts[2];
+    
+    // Supprimer de l'état local
+    setLocalLinks(prev => prev.filter(l => !(l.parent_id === parentId && l.child_id === childId)));
+    
+    // Supprimer de la BDD
+    await supabase.from('quest_links').delete()
+      .eq('parent_id', parentId)
+      .eq('child_id', childId);
+  }, [userId]);
 
   return (
     <div className="w-full h-full relative">
@@ -991,10 +1063,10 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeDragStart={onNodeDragStart}
-        onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onNodeClick={onNodeClick}
         onConnect={onConnect}
+        onEdgeClick={onEdgeClick}
         fitView
         fitViewOptions={{ padding: 1.4 }}
         minZoom={0.1}
@@ -1016,7 +1088,6 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
           </button>
         </Panel>
         <Panel position="top-right" className="p-4 flex gap-4">
-          {/* INSTRUCTIONS FLOTTANTES MODE LIAISON */}
           {isLinkingMode && (
              <div className="bg-black/80 text-white px-3 py-2 rounded border border-blue-500 animate-pulse text-sm font-mono">
                 {linkSourceId ? "Cliquez sur l'ENFANT" : "Cliquez sur le PARENT"}
@@ -1165,7 +1236,7 @@ const SidebarItem = ({
   );
 };
 
-// --- TUTORIEL A à Z : CYCLE DE CRÉATION COMPLET ---
+// --- TUTORIEL MIS À JOUR avec étape suppression de lien ---
 type TutorialTarget = 'center' | 'sidebar' | 'navigation' | 'add' | 'link' | 'node' | 'crosshair' | 'add_tree' | 'add_category';
 const TUTORIAL_STEPS: { text: string; target: TutorialTarget }[] = [
   { text: "Bienvenue dans l'Éditeur de Quêtes ! Tu vas créer des aventures en chaînes de tâches. Suis le guide de A à Z.", target: 'center' },
@@ -1174,6 +1245,7 @@ const TUTORIAL_STEPS: { text: string; target: TutorialTarget }[] = [
   { text: "Étape 3 — Nœuds (tâches) : Clique sur « Ajouter » pour poser ta première quête au centre de la grille. Répète pour construire ton arbre.", target: 'add' },
   { text: "Navigation : Molette pour zoomer, clic-glissé pour te déplacer sur la grille. Tu peux t'éloigner pour voir l'ensemble.", target: 'navigation' },
   { text: "Étape 4 — Liaison : Active « Lier Quêtes », puis clique sur le parent puis sur l'enfant. Les flèches définissent l'ordre de déblocage.", target: 'link' },
+  { text: "Une erreur de liaison ? Clique simplement sur un trait pour le supprimer.", target: 'center' },
   { text: "Personnalisation : Clique sur une quête pour ouvrir son détail. Tu peux changer le titre, l'icône (émoji) et la description.", target: 'node' },
   { text: "Progression : Valide une tâche dans la modale pour la passer en vert. Les quêtes suivantes (enfants) se débloquent au fur et à mesure.", target: 'node' },
   { text: "Astuce : Le bouton cible (⊕) recentre la vue sur tout l'arbre. Bonne aventure !", target: 'crosshair' },
@@ -1253,7 +1325,6 @@ export default function Page() {
       return;
     }
     
-    // Adaptation pour l'étape 'node' si aucune quête
     if (step.target === 'node' && localQuests.length === 0) {
       setSpotlightRect(null);
       return;
@@ -1285,7 +1356,6 @@ export default function Page() {
     crosshairButtonRef,
   }), []);
 
-  // Charger les catégories et arbres (uniquement si connecté)
   useEffect(() => {
     if (!user) {
       setCategories([]);
@@ -1323,7 +1393,6 @@ export default function Page() {
     loadData();
   }, [user, currentTreeId]);
 
-  // Charger les quêtes pour le tutoriel
   useEffect(() => {
     if (!user || !currentTreeId) {
       setLocalQuests([]);
@@ -1460,14 +1529,12 @@ export default function Page() {
   const currentTutorialStep = tutorialStep !== null ? TUTORIAL_STEPS[tutorialStep] : null;
   const isLastStep = tutorialStep !== null && tutorialStep >= TUTORIAL_STEPS.length - 1;
   
-  // Adapter le message pour l'étape 'node' si aucune quête
   const tutorialText = currentTutorialStep && currentTutorialStep.target === 'node' && localQuests.length === 0
     ? "Commence par créer quelques quêtes avec le bouton « Ajouter », puis tu pourras cliquer dessus pour les personnaliser."
     : currentTutorialStep?.text || '';
 
   return (
     <div className="flex h-screen w-screen bg-[#101010] text-white font-sans overflow-hidden">
-      {/* Sidebar avec transition de largeur */}
       <aside
         ref={sidebarRef}
         className="flex flex-col z-20 border-r border-[#333] overflow-hidden shrink-0 transition-[width] duration-300 ease-in-out"
@@ -1489,7 +1556,6 @@ export default function Page() {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto py-2 min-w-0" style={{ backgroundColor: '#1e1e1e' }}>
-          {/* Message si aucune catégorie */}
           {categories.length === 0 && !showNewCategoryInput && (
             <div className="px-4 py-8 text-center">
               <p className="text-gray-500 text-sm font-mono mb-3">
@@ -1699,7 +1765,6 @@ export default function Page() {
         />
       )}
 
-      {/* Bouton flottant pour rouvrir la sidebar */}
       {isSidebarCollapsed && (
         <button
           onClick={() => setIsSidebarCollapsed(false)}
@@ -1725,10 +1790,21 @@ export default function Page() {
         )}
       </main>
 
-      {/* Overlay tutoriel : spotlight + bulle */}
+      {/* NOUVEAU : Badge Discord */}
+      <div className="fixed bottom-4 right-4 z-[80] flex items-center gap-3 bg-black/80 backdrop-blur-sm px-4 py-3 rounded-lg border border-gray-700 shadow-xl">
+        <img 
+          src="https://avatars.githubusercontent.com/u/221634597?v=4" 
+          alt="Discord Avatar"
+          className="w-10 h-10 rounded-full border-2 border-blue-500"
+        />
+        <div className="font-mono text-sm">
+          <p className="text-gray-400">Bugs ou suggestions ?</p>
+          <p className="text-white font-bold">Discord : salt4y</p>
+        </div>
+      </div>
+
       {tutorialStep !== null && currentTutorialStep && (
         <div className="fixed inset-0 z-[60] pointer-events-none">
-          {/* Assombrissement global ; trou pour la cible via box-shadow (pas de pointer-events pour laisser cliquer la cible) */}
           <div
             className="absolute inset-0"
             style={{
@@ -1751,7 +1827,6 @@ export default function Page() {
                 }}
                 aria-hidden
               />
-              {/* Flèches animées (bounce) pointant vers le spotlight */}
               <span
                 className="absolute text-[#55ff55] text-2xl font-bold animate-bounce pointer-events-none drop-shadow-[0_0_4px_#000]"
                 style={{ left: spotlightRect.left + spotlightRect.width / 2 - 12, top: spotlightRect.top - 28 }}
@@ -1782,7 +1857,6 @@ export default function Page() {
               </span>
             </>
           )}
-          {/* Bulle cliquable */}
           <div
             className="absolute inset-0 flex pointer-events-none"
             style={{
