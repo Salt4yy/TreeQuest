@@ -2,7 +2,7 @@
 
 **TreeQuest** est une application web de gestion de tâches inspirée par le célèbre système d'arbres de quêtes du mod Minecraft **FTB Quests**. Organisez vos projets, vos études ou votre vie quotidienne sous forme d'arbres de progression interactifs.
 
-[🚀 Voir la site en ligne](https://tree-quest.vercel.app)
+https://tree-quest.vercel.app
 
 <img width="1908" height="919" alt="image" src="https://github.com/user-attachments/assets/dae8fe84-91d4-4ca4-80ef-290b4850667a" />
 
