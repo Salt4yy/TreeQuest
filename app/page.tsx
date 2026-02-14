@@ -429,7 +429,6 @@ const QuestModal = ({
   const [editedIcon, setEditedIcon] = useState<string>('📦');
   const [emojiPopoverOpen, setEmojiPopoverOpen] = useState(false);
   
-  // CORRECTIF : Utiliser un ref pour tracker l'ID précédent et éviter le reset pendant l'édition
   const prevQuestIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -439,7 +438,6 @@ const QuestModal = ({
     }
     
     if (quest.id !== prevQuestIdRef.current) {
-      // Nouvelle quête, reset complet
       setEditedTitle(quest.title);
       setEditedDesc(quest.description || '');
       setEditedIcon(quest.icon || '📦');
@@ -447,7 +445,6 @@ const QuestModal = ({
       setEmojiPopoverOpen(false);
       prevQuestIdRef.current = quest.id;
     }
-    // Si même quête, ne rien faire pour éviter de reset pendant l'édition d'emoji
   }, [quest]);
 
   if (!quest) return null;
@@ -610,7 +607,7 @@ type TutorialTargetRefs = {
   crosshairButtonRef?: React.RefObject<HTMLButtonElement | null>;
 };
 
-// NOUVELLE FONCTION : Résolution des collisions en cascade
+// Résolution des collisions en cascade
 const resolveOverlaps = (nodes: Node<QuestNodeData>[], draggedNodeId: string): Node<QuestNodeData>[] => {
   const NODE_RADIUS = 40; // Rayon du cercle (80px / 2)
   const PADDING = 20; // Espace minimum entre nœuds
@@ -640,7 +637,6 @@ const resolveOverlaps = (nodes: Node<QuestNodeData>[], draggedNodeId: string): N
           const pushNode2 = node2.id !== draggedNodeId;
           
           if (pushNode1 && pushNode2) {
-            // Aucun n'est le nœud déplacé, pousser les deux
             const halfPush = overlap / 2;
             updatedNodes[i] = {
               ...node1,
@@ -657,7 +653,6 @@ const resolveOverlaps = (nodes: Node<QuestNodeData>[], draggedNodeId: string): N
               }
             };
           } else if (pushNode1) {
-            // Pousser uniquement node1 (node2 est déplacé)
             updatedNodes[i] = {
               ...node1,
               position: {
@@ -666,7 +661,6 @@ const resolveOverlaps = (nodes: Node<QuestNodeData>[], draggedNodeId: string): N
               }
             };
           } else if (pushNode2) {
-            // Pousser uniquement node2 (node1 est déplacé)
             updatedNodes[j] = {
               ...node2,
               position: {
@@ -678,11 +672,8 @@ const resolveOverlaps = (nodes: Node<QuestNodeData>[], draggedNodeId: string): N
         }
       }
     }
-    
-    // Optimisation : arrêter si aucun mouvement à cette itération
     if (!hasMovement) break;
   }
-  
   return updatedNodes;
 };
 
@@ -700,7 +691,6 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
   const [deleteLinkConfirm, setDeleteLinkConfirm] = useState<{ parentId: string; childId: string } | null>(null);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   
-  // NOUVEAU : Ref pour détecter les clics vs vrais drags
   const dragStartPosRef = useRef<{ x: number; y: number } | null>(null);
   
   const hasInitializedView = useRef(false);
@@ -836,13 +826,11 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     }
   }, [currentTreeId, computedNodesAndEdges.nodes.length, fitView]);
 
-  // AMÉLIORATION : Enregistrer la position de départ
   const onNodeDragStart = useCallback((_: any, node: Node<QuestNodeData>) => {
     setDraggingNodeId(node.id);
     dragStartPosRef.current = { x: node.position.x, y: node.position.y };
   }, []);
 
-  // AMÉLIORATION : Détecter clic vs drag avec tolérance de 5px
   const onNodeDragStop = useCallback(async (_: any, node: Node<QuestNodeData>) => {
   setDraggingNodeId(null);
   if (!userId) return;
@@ -852,7 +840,7 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
   const dy = dragStartPosRef.current ? node.position.y - dragStartPosRef.current.y : 100;
   const distance = Math.sqrt(dx * dx + dy * dy);
 
-  // TOLÉRANCE : Si mouvement < 8px (avant c'était 5), on force l'ouverture de la modale
+  // TOLÉRANCE : Si mouvement < 8px, on considère comme un clic
   if (distance < 8) {
     const quest = localQuests.find(q => q.id === node.id);
     if (quest) setSelectedQuest(quest);
@@ -860,21 +848,16 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     return;
   }
   
-  // Sinon, on continue la logique de sauvegarde et de collision...
   dragStartPosRef.current = null;
     
-    // C'est un VRAI DRAG (distance >= 5px) - sauvegarder la position
+    // C'est un VRAI DRAG
     dragStartPosRef.current = null;
     
     const currentNodes = getNodes() as Node<QuestNodeData>[];
-    
-    // Résoudre les chevauchements en cascade
     const resolvedNodes = resolveOverlaps(currentNodes, node.id);
     
-    // Mettre à jour les nœuds avec les nouvelles positions
     setNodes(resolvedNodes);
     
-    // Mettre à jour l'état local
     setLocalQuests(prev => prev.map(q => {
       const matchingNode = resolvedNodes.find(n => n.id === q.id);
       if (matchingNode) {
@@ -887,7 +870,6 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
       return q;
     }));
     
-    // Sauvegarder en BDD
     const updatePromises = resolvedNodes.map(async (n) => {
       const quest = localQuests.find(q => q.id === n.id);
       if (quest && (quest.position_x !== n.position.x || quest.position_y !== n.position.y)) {
@@ -900,9 +882,8 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     });
     
     await Promise.all(updatePromises.filter(p => p !== null));
-  }, [userId, localQuests, getNodes, setNodes, setLocalQuests, isLinkingMode, linkSourceId, localLinks]);
+  }, [userId, localQuests, getNodes, setNodes, setLocalQuests]);
 
-  // CONSERVÉ : onNodeClick pour les vrais clics (sans mouvement)
   const onNodeClick = useCallback(async (_: any, node: Node<QuestNodeData>) => {
     if (isLinkingMode) {
       if (!linkSourceId) {
@@ -913,8 +894,21 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
              return;
         }
 
-        const exists = localLinks.some(l => l.parent_id === linkSourceId && l.child_id === node.id);
-        if (!exists && userId) {
+        // Vérification de doublon (même lien) et remplacement
+        const existingLink = localLinks.find(l => 
+          (l.parent_id === linkSourceId && l.child_id === node.id) ||
+          (l.parent_id === node.id && l.child_id === linkSourceId)
+        );
+
+        if (existingLink) {
+           // Supprimer l'existant
+           setLocalLinks(prev => prev.filter(l => l !== existingLink));
+           await supabase.from('quest_links').delete()
+             .eq('parent_id', existingLink.parent_id)
+             .eq('child_id', existingLink.child_id);
+        }
+
+        if (userId) {
             const newLink = { parent_id: linkSourceId, child_id: node.id };
             setLocalLinks(prev => [...prev, newLink]);
             await supabase.from('quest_links').insert(newLink);
@@ -1031,61 +1025,60 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     return parentsIds.every(pid => localQuests.find(q => q.id === pid)?.status === 'completed');
   }, [selectedQuest, localLinks, localQuests]);
 
-const onConnect = useCallback(async (params: any) => {
-  if (!params.source || !params.target || !userId) return;
-  if (params.source === params.target) return;
+  const onConnect = useCallback(async (params: any) => {
+    if (!params.source || !params.target || !userId) return;
+    if (params.source === params.target) return;
 
-  // 1. Chercher si un lien existe déjà entre ces deux-là (A->B OU B->A)
-  const existingLink = localLinks.find(l => 
-    (l.parent_id === params.source && l.child_id === params.target) ||
-    (l.parent_id === params.target && l.child_id === params.source)
-  );
+    // 1. Chercher si un lien existe déjà entre ces deux-là (A->B OU B->A)
+    const existingLink = localLinks.find(l => 
+      (l.parent_id === params.source && l.child_id === params.target) ||
+      (l.parent_id === params.target && l.child_id === params.source)
+    );
 
-  if (existingLink) {
-    // 2. Supprimer l'ancien lien partout (Local + BDD)
-    setLocalLinks(prev => prev.filter(l => 
-      !(l.parent_id === existingLink.parent_id && l.child_id === existingLink.child_id)
-    ));
-    
-    await supabase.from('quest_links').delete()
-      .eq('parent_id', existingLink.parent_id)
-      .eq('child_id', existingLink.child_id);
-  }
+    if (existingLink) {
+      // 2. Supprimer l'ancien lien partout (Local + BDD) pour le remplacer
+      setLocalLinks(prev => prev.filter(l => 
+        !(l.parent_id === existingLink.parent_id && l.child_id === existingLink.child_id)
+      ));
+      
+      await supabase.from('quest_links').delete()
+        .eq('parent_id', existingLink.parent_id)
+        .eq('child_id', existingLink.child_id);
+    }
 
-  // 3. Créer le nouveau lien propre
-  const newLink = { parent_id: params.source, child_id: params.target };
-  setLocalLinks(prev => [...prev, newLink]);
-  await supabase.from('quest_links').insert(newLink);
-}, [localQuests, localLinks, currentTreeId, userId]);
+    // 3. Créer le nouveau lien propre
+    const newLink = { parent_id: params.source, child_id: params.target };
+    setLocalLinks(prev => [...prev, newLink]);
+    await supabase.from('quest_links').insert(newLink);
+  }, [localQuests, localLinks, currentTreeId, userId]);
 
-const onEdgeClick = useCallback((event: React.MouseEvent, edge: Edge) => {
-  event.stopPropagation(); // Empêche de cliquer sur ce qu'il y a derrière
-  if (!userId) return;
-  const parts = edge.id.split('-');
-  if (parts.length === 3) {
-    setDeleteLinkConfirm({ parentId: parts[1], childId: parts[2] });
-  }
-}, [userId]);
+  // GESTIONNAIRES DE CLIC SUR LES LIENS
+  const onEdgeClick = useCallback((event: React.MouseEvent, edge: Edge) => {
+    event.stopPropagation();
+    if (!userId) return;
+    const parts = edge.id.split('-');
+    if (parts.length === 3) {
+      setDeleteLinkConfirm({ parentId: parts[1], childId: parts[2] });
+    }
+  }, [userId]);
 
-const onEdgeContextMenu = useCallback((event: React.MouseEvent, edge: Edge) => {
-  event.preventDefault(); // Empêche le menu Windows
-  event.stopPropagation();
-  if (!userId) return;
-  const parts = edge.id.split('-');
-  if (parts.length === 3) {
-    setDeleteLinkConfirm({ parentId: parts[1], childId: parts[2] });
-  }
-}, [userId]);
-  // AMÉLIORATION 4 : Confirmation de suppression de lien avec mise à jour immédiate
+  const onEdgeContextMenu = useCallback((event: React.MouseEvent, edge: Edge) => {
+    event.preventDefault(); // Empêche le menu Windows
+    event.stopPropagation();
+    if (!userId) return;
+    const parts = edge.id.split('-');
+    if (parts.length === 3) {
+      setDeleteLinkConfirm({ parentId: parts[1], childId: parts[2] });
+    }
+  }, [userId]);
+
   const confirmDeleteLink = useCallback(async () => {
     if (!deleteLinkConfirm || !userId) return;
     
     const { parentId, childId } = deleteLinkConfirm;
     
-    // Supprimer de l'état local pour réactivité immédiate (le trait disparaît instantanément)
     setLocalLinks(prev => prev.filter(l => !(l.parent_id === parentId && l.child_id === childId)));
     
-    // Supprimer de la BDD en arrière-plan
     await supabase.from('quest_links').delete()
       .eq('parent_id', parentId)
       .eq('child_id', childId);
@@ -1111,11 +1104,13 @@ const onEdgeContextMenu = useCallback((event: React.MouseEvent, edge: Edge) => {
         fitViewOptions={{ padding: 1.4 }}
         minZoom={0.1}
         maxZoom={3}
-defaultEdgeOptions={{ 
-    focusable: true,
-    interactionWidth: 30, // Zone de clic encore plus large
-    style: { cursor: 'pointer' }
-  }}      >
+        defaultEdgeOptions={{ 
+          focusable: true,
+          interactionWidth: 30, // Zone de clic encore plus large pour faciliter la sélection
+          style: { cursor: 'pointer', strokeWidth: 3 },
+          type: 'straight'
+        }}      
+      >
         <Controls showZoom={false} showInteractive={false} showFitView={false} position="bottom-right" className="bg-[#333] border-2 border-[#111] shadow-xl rounded-none" />
         <Panel position="bottom-right" className="mb-2 mr-2">
           <button
@@ -1289,7 +1284,7 @@ const SidebarItem = ({
   );
 };
 
-// --- TUTORIEL MIS À JOUR avec étape suppression de lien ---
+// --- TUTORIEL ---
 type TutorialTarget = 'center' | 'sidebar' | 'navigation' | 'add' | 'link' | 'node' | 'crosshair' | 'add_tree' | 'add_category';
 const TUTORIAL_STEPS: { text: string; target: TutorialTarget }[] = [
   { text: "Bienvenue dans l'Éditeur de Quêtes ! Tu vas créer des aventures en chaînes de tâches. Suis le guide de A à Z.", target: 'center' },
@@ -1298,7 +1293,7 @@ const TUTORIAL_STEPS: { text: string; target: TutorialTarget }[] = [
   { text: "Étape 3 — Nœuds (tâches) : Clique sur « Ajouter » pour poser ta première quête au centre de la grille. Répète pour construire ton arbre.", target: 'add' },
   { text: "Navigation : Molette pour zoomer, clic-glissé pour te déplacer sur la grille. Tu peux t'éloigner pour voir l'ensemble.", target: 'navigation' },
   { text: "Étape 4 — Liaison : Active « Lier Quêtes », puis clique sur le parent puis sur l'enfant. Les flèches définissent l'ordre de déblocage.", target: 'link' },
-  { text: "Une erreur de liaison ? Clique simplement sur un trait pour le supprimer.", target: 'center' },
+  { text: "Une erreur de liaison ? Clique simplement sur un trait (gauche ou droit) pour le supprimer.", target: 'center' },
   { text: "Personnalisation : Clique sur une quête pour ouvrir son détail. Tu peux changer le titre, l'icône (émoji) et la description.", target: 'node' },
   { text: "Progression : Valide une tâche dans la modale pour la passer en vert. Les quêtes suivantes (enfants) se débloquent au fur et à mesure.", target: 'node' },
   { text: "Astuce : Le bouton cible (⊕) recentre la vue sur tout l'arbre. Bonne aventure !", target: 'crosshair' },
@@ -1842,20 +1837,20 @@ export default function Page() {
             <QuestTree currentTreeId={currentTreeId} tutorialTargetRefs={tutorialTargetRefs} userId={user.id} />
           </ReactFlowProvider>
         )}
-      </main>
 
-      {/* AMÉLIORATION : Badge Discord avec texte exact */}
-<div className="fixed bottom-4 right-4 z-[80] flex items-center gap-2 bg-black/70 backdrop-blur-sm px-3 py-2 rounded border border-gray-700/50 shadow-lg">
-  <img 
-    src="https://avatars.githubusercontent.com/u/221634597?v=4" 
-    alt="Discord Avatar"
-    className="w-8 h-8 rounded-full border border-blue-500/60"
-  />
-  <div className="font-mono text-xs">
-    <p className="text-gray-500 text-[10px]">Un bug ou une suggestion ?</p>
-    <p className="text-white font-bold text-[10px]">contactez moi sur discord : salt4y</p>
-  </div>
-</div>
+        {/* --- BADGE DISCORD STYLE MINECRAFT (Positionné dans le main) --- */}
+        <div className="absolute bottom-4 left-4 z-[80] flex items-center gap-2 bg-[#2d2d2d] border-2 border-[#1a1a1a] shadow-[4px_4px_0_0_#0d0d0d] px-3 py-2 min-w-[200px] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_#0d0d0d] transition-all">
+          <img 
+            src="https://avatars.githubusercontent.com/u/221634597?v=4" 
+            alt="Discord Avatar"
+            className="w-8 h-8 rounded-none border border-[#555]"
+          />
+          <div className="font-mono text-xs leading-tight">
+            <p className="text-gray-400 text-[10px] mb-0.5">Un bug ou une suggestion ?</p>
+            <p className="text-white font-bold text-[10px]">contactez moi sur discord : <span className="text-blue-400">salt4y</span></p>
+          </div>
+        </div>
+      </main>
 
       {tutorialStep !== null && currentTutorialStep && (
         <div className="fixed inset-0 z-[60] pointer-events-none">
