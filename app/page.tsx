@@ -1058,7 +1058,7 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     return parentsIds.every(pid => localQuests.find(q => q.id === pid)?.status === 'completed');
   }, [selectedQuest, localLinks, localQuests]);
 
-  // AMÉLIORATION : Gestion stricte des doubles liaisons bidirectionnelles
+  // AMÉLIORATION 1 : Gestion stricte des connexions - un seul lien entre deux nœuds
   const onConnect = useCallback(async (params: any) => {
     if (!params.source || !params.target || !userId) return;
     
@@ -1075,27 +1075,30 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
       return;
     }
     
-    // Vérifier si le lien inverse existe (B -> A quand on veut A -> B)
-    const reverseLink = localLinks.find(l => l.parent_id === params.target && l.child_id === params.source);
+    // NOUVEAU : Vérifier s'il existe déjà un lien entre A et B (dans n'importe quel sens)
+    const existingLink = localLinks.find(l => 
+      (l.parent_id === params.source && l.child_id === params.target) ||
+      (l.parent_id === params.target && l.child_id === params.source)
+    );
     
-    if (reverseLink) {
-      // Supprimer le lien inverse avant de créer le nouveau
-      setLocalLinks(prev => prev.filter(l => !(l.parent_id === params.target && l.child_id === params.source)));
+    if (existingLink) {
+      // Supprimer l'ancien lien (dans l'état local ET dans la BDD)
+      setLocalLinks(prev => prev.filter(l => 
+        !(l.parent_id === existingLink.parent_id && l.child_id === existingLink.child_id)
+      ));
+      
       await supabase.from('quest_links').delete()
-        .eq('parent_id', params.target)
-        .eq('child_id', params.source);
+        .eq('parent_id', existingLink.parent_id)
+        .eq('child_id', existingLink.child_id);
     }
     
-    // Vérifier si le lien existe déjà dans le bon sens
-    const exists = localLinks.some(l => l.parent_id === params.source && l.child_id === params.target);
-    if (!exists) {
-      const newLink = { parent_id: params.source, child_id: params.target };
-      setLocalLinks(prev => [...prev, newLink]);
-      await supabase.from('quest_links').insert(newLink);
-    }
+    // Créer le nouveau lien A -> B
+    const newLink = { parent_id: params.source, child_id: params.target };
+    setLocalLinks(prev => [...prev, newLink]);
+    await supabase.from('quest_links').insert(newLink);
   }, [localQuests, localLinks, currentTreeId, userId]);
 
-  // AMÉLIORATION : Suppression de lien avec modale au lieu de window.confirm
+  // AMÉLIORATION 2 : Suppression de lien (Clic Gauche)
   const onEdgeClick = useCallback(async (_: any, edge: Edge) => {
     if (!userId) return;
     
@@ -1106,20 +1109,37 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     const parentId = parts[1];
     const childId = parts[2];
     
-    // Ouvrir la modale de confirmation
+    // Ouvrir la modale de confirmation (version danger)
     setDeleteLinkConfirm({ parentId, childId });
   }, [userId]);
 
-  // NOUVEAU : Confirmation de suppression de lien
+  // AMÉLIORATION 2 : Suppression de lien (Clic Droit)
+  const onEdgeContextMenu = useCallback(async (event: React.MouseEvent, edge: Edge) => {
+    event.preventDefault(); // Empêcher le menu contextuel par défaut
+    
+    if (!userId) return;
+    
+    // Extraire parent_id et child_id de l'id de l'edge (format: e-{parent_id}-{child_id})
+    const parts = edge.id.split('-');
+    if (parts.length !== 3) return;
+    
+    const parentId = parts[1];
+    const childId = parts[2];
+    
+    // Ouvrir la modale de confirmation (version danger)
+    setDeleteLinkConfirm({ parentId, childId });
+  }, [userId]);
+
+  // AMÉLIORATION 4 : Confirmation de suppression de lien avec mise à jour immédiate
   const confirmDeleteLink = useCallback(async () => {
     if (!deleteLinkConfirm || !userId) return;
     
     const { parentId, childId } = deleteLinkConfirm;
     
-    // Supprimer de l'état local pour réactivité immédiate
+    // Supprimer de l'état local pour réactivité immédiate (le trait disparaît instantanément)
     setLocalLinks(prev => prev.filter(l => !(l.parent_id === parentId && l.child_id === childId)));
     
-    // Supprimer de la BDD
+    // Supprimer de la BDD en arrière-plan
     await supabase.from('quest_links').delete()
       .eq('parent_id', parentId)
       .eq('child_id', childId);
@@ -1140,6 +1160,7 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
         onNodeClick={onNodeClick}
         onConnect={onConnect}
         onEdgeClick={onEdgeClick}
+        onEdgeContextMenu={onEdgeContextMenu}
         fitView
         fitViewOptions={{ padding: 1.4 }}
         minZoom={0.1}
@@ -1147,7 +1168,10 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
         panOnDrag={true}
         zoomOnScroll={true}
         panOnScroll={false}
-        defaultEdgeOptions={{ focusable: true }} 
+        defaultEdgeOptions={{ 
+          focusable: true,
+          interactionWidth: 20
+        }}
       >
         <Controls showZoom={false} showInteractive={false} showFitView={false} position="bottom-right" className="bg-[#333] border-2 border-[#111] shadow-xl rounded-none" />
         <Panel position="bottom-right" className="mb-2 mr-2">
@@ -1877,7 +1901,7 @@ export default function Page() {
         )}
       </main>
 
-      {/* AMÉLIORATION : Badge Discord plus discret */}
+      {/* AMÉLIORATION 3 : Badge Discord simplifié */}
       <div className="fixed bottom-4 right-4 z-[80] flex items-center gap-2 bg-black/70 backdrop-blur-sm px-3 py-2 rounded border border-gray-700/50 shadow-lg">
         <img 
           src="https://avatars.githubusercontent.com/u/221634597?v=4" 
@@ -1885,8 +1909,7 @@ export default function Page() {
           className="w-8 h-8 rounded-full border border-blue-500/60"
         />
         <div className="font-mono text-xs">
-          <p className="text-gray-500 text-[10px]">Bugs/suggestions ?</p>
-          <p className="text-white font-bold">salt4y</p>
+          <p className="text-white font-bold">Discord : salt4y</p>
         </div>
       </div>
 
