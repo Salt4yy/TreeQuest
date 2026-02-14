@@ -4,8 +4,8 @@
 
 [🚀 Voir la site en ligne](https://tree-quest.vercel.app)
 
-![UI Preview](<img width="1908" height="919" alt="image" src="https://github.com/user-attachments/assets/dae8fe84-91d4-4ca4-80ef-290b4850667a" />
-)
+<img width="1908" height="919" alt="image" src="https://github.com/user-attachments/assets/dae8fe84-91d4-4ca4-80ef-290b4850667a" />
+
 
 ## ✨ Fonctionnalités
 
