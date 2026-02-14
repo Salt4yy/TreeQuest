@@ -836,7 +836,7 @@ function QuestTree({ currentTreeId, tutorialTargetRefs, userId }: { currentTreeI
     
     if (!userId) return;
     
-    const currentNodes = getNodes();
+    const currentNodes = getNodes() as Node<QuestNodeData>[];
     
     // Résoudre les chevauchements en cascade
     const resolvedNodes = resolveOverlaps(currentNodes, node.id);
